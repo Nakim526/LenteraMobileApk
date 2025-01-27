@@ -34,9 +34,9 @@ class _SignUpPageState extends State<SignUpPage> {
           barrierDismissible: false, // Jangan tutup saat klik di luar dialog
           builder: (BuildContext context) {
             return AlertDialog(
-              title: Text('Sign-Up Successful'),
+              title: Text('Daftar Akun Berhasil!'),
               content: Text(
-                  'Your account has been created successfully. Please log in to continue.'),
+                  'Akun kamu berhasil dibuat. Silahkan lanjut ke halaman login.'),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -94,7 +94,16 @@ class _SignUpPageState extends State<SignUpPage> {
         title: Text('Kembali Login'),
       ),
       body: Container(
-        color: Colors.lightGreenAccent,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.lightGreenAccent,
+              Colors.green,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         child: ListView(
           children: [
             Container(
@@ -122,7 +131,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       child: Column(
                         children: [
                           TextFormField(
-                            controller: _emailController,
+                            controller: _usernameController,
                             decoration: InputDecoration(labelText: 'Username'),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -156,18 +165,20 @@ class _SignUpPageState extends State<SignUpPage> {
                           ),
                           SizedBox(height: 16),
                           TextFormField(
-                            controller: _passwordController,
-                            decoration:
-                                InputDecoration(labelText: 'Re-type Password'),
+                            controller: _confirmPasswordController,
+                            decoration: InputDecoration(
+                                labelText: 'Konfirmasi Password'),
                             obscureText: true,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your password';
+                              } else if (value != _passwordController.text) {
+                                return 'Passwords do not match';
                               }
                               return null;
                             },
                           ),
-                          SizedBox(height: 8),
+                          SizedBox(height: 10),
                         ],
                       ),
                     ),
@@ -176,7 +187,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ? CircularProgressIndicator()
                         : ElevatedButton(
                             onPressed: _signUp,
-                            child: Text('Sign Up'),
+                            child: Text('Daftar'),
                           ),
                   ],
                 ),

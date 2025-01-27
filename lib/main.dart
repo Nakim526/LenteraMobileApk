@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'src/firebase_options.dart';
 import 'pages/sign_in.dart'; // Import halaman login
 import 'pages/sign_up.dart';
 import 'pages/home.dart';
@@ -11,26 +12,30 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(MyApp());
+  
+  // Cek status login
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+  runApp(MyApp(isLoggedIn: isLoggedIn));
 }
 
 class MyApp extends StatelessWidget {
+  final bool isLoggedIn;
+
+  const MyApp({Key? key, required this.isLoggedIn}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Login with Firebase',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      initialRoute: '/',
+      initialRoute: isLoggedIn ? '/home' : '/sign-in',
       routes: {
         '/sign-in': (context) => LoginPage(),
         '/sign-up': (context) => SignUpPage(),
         '/home': (context) => HomePage(),
         '/record': (context) => RecordPage(),
       },
-      home: LoginPage(), // Halaman awal
     );
   }
 }

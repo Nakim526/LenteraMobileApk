@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'sign_up.dart'; // Import halaman sign-up
-import 'home.dart'; // Import halaman utama
 
 class LoginPage extends StatefulWidget {
   @override
@@ -15,6 +13,42 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+// Setelah login berhasil
+  Future<void> _login() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        UserCredential userCredential =
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+        // Simpan status login ke SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true); // Menyimpan status login
+        await prefs.setString(
+          'userEmail',
+          _emailController.text,
+        ); // Simpan email pengguna
+
+        // Navigasi ke halaman utama
+        Navigator.pushReplacementNamed(context, '/home');
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${e.toString()}')),
+        );
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   Future<void> _loginWithEmail() async {
     if (_formKey.currentState!.validate()) {
@@ -39,10 +73,7 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setBool('isLoggedIn', true);
 
         // Jika berhasil, pindah ke halaman utama
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomePage()),
-        );
+        Navigator.pushReplacementNamed(context, '/home');
       } on FirebaseAuthException catch (e) {
         String errorMessage;
 
@@ -89,7 +120,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loginWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // Buat instance GoogleSignIn
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+
+      // Logout terlebih dahulu untuk memaksa pengguna memilih akun kembali
+      await googleSignIn.signOut();
+
+      // Proses login
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) return; // Pengguna batal login
 
       final GoogleSignInAuthentication googleAuth =
@@ -100,16 +138,17 @@ class _LoginPageState extends State<LoginPage> {
         idToken: googleAuth.idToken,
       );
 
+      // Login ke Firebase dengan credential Google
       await FirebaseAuth.instance.signInWithCredential(credential);
 
+      // Simpan status login di SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomePage()),
-      );
+      // Navigasi ke halaman utama
+      Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
+      // Menampilkan pesan error jika login gagal
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Google Login failed: ${e.toString()}')),
       );
@@ -123,7 +162,16 @@ class _LoginPageState extends State<LoginPage> {
     double availableHeight = screenHeight - statusBarHeight;
     return Scaffold(
       body: Container(
-        color: Colors.lightGreenAccent,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.lightGreenAccent,
+              Colors.green,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         child: ListView(
           children: [
             Container(
@@ -145,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 60.0),
+                          padding: EdgeInsets.symmetric(vertical: 50.0),
                           child: Image.asset(
                             "lib/assets/logo UINAM.png",
                             width: 100,
@@ -161,8 +209,7 @@ class _LoginPageState extends State<LoginPage> {
                             children: [
                               TextFormField(
                                 controller: _emailController,
-                                decoration: InputDecoration(
-                                    labelText: 'Username/Email'),
+                                decoration: InputDecoration(labelText: 'Email'),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your email';
@@ -186,18 +233,17 @@ class _LoginPageState extends State<LoginPage> {
                               SizedBox(height: 16),
                               Row(
                                 children: [
-                                  Text("Don't have an account?"),
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SignUpPage(),
-                                        ),
-                                      );
+                                  Text("Belum punya akun?"),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, '/sign-up');
                                     },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                    ),
                                     child: Text(
-                                      " Sign Up",
+                                      " Daftar disini!",
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: Colors.blue[900]),
@@ -213,7 +259,7 @@ class _LoginPageState extends State<LoginPage> {
                             ? CircularProgressIndicator()
                             : ElevatedButton(
                                 onPressed: _loginWithEmail,
-                                child: Text('Sign In'),
+                                child: Text('Masuk'),
                               ),
                         SizedBox(height: 16),
                         Row(
@@ -262,7 +308,7 @@ class _LoginPageState extends State<LoginPage> {
                                           width: 20,
                                         ),
                                         SizedBox(width: 10.0),
-                                        Text("Login with Google"),
+                                        Text("Masuk dengan Google"),
                                       ],
                                     ),
                                   ),
