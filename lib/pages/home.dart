@@ -19,7 +19,7 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home'),
+        title: Text('LENTERA MOBILE APP'),
         actions: [
           IconButton(
             icon: Icon(Icons.logout),
@@ -27,10 +27,19 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Text(
-          'Welcome to the Home Page!',
-          style: TextStyle(fontSize: 24),
+      body: Container(
+        child: ListView(
+          children: [
+            ListTile(
+              title: const Text('Pemrograman Web 1'),
+              subtitle: const Text('Pertemuan ke-1'),
+              leading: const Icon(Icons.lens),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.pushNamed(context, '/record');
+              },
+            ),
+          ],
         ),
       ),
     );

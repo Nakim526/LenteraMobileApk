@@ -118,78 +118,167 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double statusBarHeight = MediaQuery.of(context).padding.top;
+    double availableHeight = screenHeight - statusBarHeight;
     return Scaffold(
-      body: Stack(
-        children: [
-          ListView(
-            children: [
-              Column(
+      body: Container(
+        color: Colors.lightGreenAccent,
+        child: ListView(
+          children: [
+            Container(
+              height: availableHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 30.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          TextFormField(
-                            controller: _emailController,
-                            decoration: InputDecoration(labelText: 'Email'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              return null;
-                            },
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'LENTERA MOBILE',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
                           ),
-                          SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            decoration: InputDecoration(labelText: 'Password'),
-                            obscureText: true,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              return null;
-                            },
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 60.0),
+                          child: Image.asset(
+                            "lib/assets/logo UINAM.png",
+                            width: 100,
                           ),
-                          SizedBox(height: 24),
-                          _isLoading
-                              ? CircularProgressIndicator()
-                              : ElevatedButton(
-                                  onPressed: _loginWithEmail,
-                                  child: Text('Login'),
+                        ),
+                        Container(
+                          padding: EdgeInsets.all(20.0),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20.0),
+                            color: Colors.green,
+                          ),
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: InputDecoration(
+                                    labelText: 'Username/Email'),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                decoration:
+                                    InputDecoration(labelText: 'Password'),
+                                obscureText: true,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your password';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Text("Don't have an account?"),
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SignUpPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      " Sign Up",
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue[900]),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 24),
+                        _isLoading
+                            ? CircularProgressIndicator()
+                            : ElevatedButton(
+                                onPressed: _loginWithEmail,
+                                child: Text('Sign In'),
+                              ),
+                        SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text('atau'),
+                            ),
+                            Expanded(child: Divider()),
+                          ],
+                        ),
+                        SizedBox(height: 16),
+                        Container(
+                          width: MediaQuery.of(context).size.width,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                height: 45,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(26.0),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      offset: Offset(0, 1),
+                                      blurRadius: 1.0,
+                                    ),
+                                  ],
                                 ),
-                          SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: _loginWithGoogle,
-                            icon: Icon(Icons.login),
-                            label: Text('Login with Google'),
+                                child: TextButton(
+                                  onPressed: () {
+                                    _loginWithGoogle();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(26.0),
+                                    ),
+                                  ),
+                                  child: Container(
+                                    child: Row(
+                                      children: [
+                                        Image.asset(
+                                          "lib/assets/icon Google.png",
+                                          width: 20,
+                                        ),
+                                        SizedBox(width: 10.0),
+                                        Text("Login with Google"),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 16),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => SignUpPage()),
-                              );
-                            },
-                            child: Text('Don\'t have an account? Sign Up'),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          Positioned(
-            child: Container(),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

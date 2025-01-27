@@ -7,8 +7,10 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -20,8 +22,8 @@ class _SignUpPageState extends State<SignUpPage> {
 
       try {
         // Mendaftarkan pengguna baru
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
+        UserCredential userCredential =
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
@@ -58,7 +60,13 @@ class _SignUpPageState extends State<SignUpPage> {
         } else if (e.code == 'email-already-in-use') {
           // Menampilkan pesan error
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('The account already exists for that email.')),
+            SnackBar(
+                content: Text('The account already exists for that email.')),
+          );
+        } else {
+          // Menampilkan pesan error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Sign-Up failed: Input is not available')),
           );
         }
       } catch (e) {
@@ -76,48 +84,105 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double statusBarHeight = MediaQuery.of(context).padding.top;
+    double appBarHeight = kToolbarHeight;
+    double availableHeight = screenHeight - statusBarHeight - appBarHeight;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Sign-Up'),
+        backgroundColor: Colors.lightGreenAccent,
+        title: Text('Kembali Login'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(labelText: 'Email'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                decoration: InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your password';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 24),
-              _isLoading
-                  ? CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _signUp,
-                      child: Text('Sign Up'),
+      body: Container(
+        color: Colors.lightGreenAccent,
+        child: ListView(
+          children: [
+            Container(
+              height: availableHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 30.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'DAFTAR AKUN',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-            ],
-          ),
+                    SizedBox(height: 50),
+                    Container(
+                      padding: EdgeInsets.all(20.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20.0),
+                        color: Colors.green,
+                      ),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _emailController,
+                            decoration: InputDecoration(labelText: 'Username'),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+                          TextFormField(
+                            controller: _emailController,
+                            decoration: InputDecoration(labelText: 'Email'),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            decoration: InputDecoration(labelText: 'Password'),
+                            obscureText: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            decoration:
+                                InputDecoration(labelText: 'Re-type Password'),
+                            obscureText: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    _isLoading
+                        ? CircularProgressIndicator()
+                        : ElevatedButton(
+                            onPressed: _signUp,
+                            child: Text('Sign Up'),
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
