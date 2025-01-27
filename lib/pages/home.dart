@@ -27,18 +27,82 @@ class HomePage extends StatelessWidget {
       'Sistem Operasi Komputer',
     ];
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              height: 125,
+              child: DrawerHeader(
+                decoration: BoxDecoration(
+                  color: Colors.green[900],
+                ),
+                child: Text(
+                  'LENTERA MOBILE APP',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.home),
+              title: Text('Home'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacementNamed(context, '/home');
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.person),
+              title: Text('Profile'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/profile');
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.history),
+              title: Text('Data Log'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/dataLog');
+              },
+            ),
+            ListTile(
+                leading: Icon(Icons.logout),
+                title: Text('Sign Out'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _logout(context);
+                }),
+          ],
+        ),
+      ),
       appBar: AppBar(
-        backgroundColor: Colors.green,
-        title: Text('LENTERA MOBILE APP'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: () => _logout(context),
+        backgroundColor: Colors.green[900],
+        leading: Container(
+          margin: const EdgeInsets.only(left: 16.0),
+          child: Builder(
+            builder: (context) {
+              return IconButton(
+                icon: Icon(
+                  Icons.menu,
+                  color: Colors.white,
+                ),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              );
+            },
           ),
-        ],
+        ),
+        title: Text(
+          'LENTERA MOBILE APP',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
       body: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -49,11 +113,14 @@ class HomePage extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: ListView.separated(
+        child: ListView.builder(
           itemCount: matkul.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16.0),
           itemBuilder: (context, index) {
             return Container(
+              margin: EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 8.0,
+              ),
               decoration: BoxDecoration(
                 color: Colors.green.shade200,
                 borderRadius: BorderRadius.circular(16.0),

@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as Img;
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class RecordPage extends StatefulWidget {
   @override
@@ -11,16 +15,28 @@ class RecordPage extends StatefulWidget {
 }
 
 class _RecordPageState extends State<RecordPage> {
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
+  final _nameController = TextEditingController();
+  final _nimController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  static const String clientId = "ca88e99d5b919db";
   CameraController? _cameraController;
   String? _location;
   String? _photoPath;
   bool _isProcessing = false;
+  bool _isSending = false;
   List<CameraDescription>? cameras;
 
   @override
   void initState() {
     super.initState();
     _initializeCameras();
+  }
+
+  void _retakePhoto() {
+    setState(() {
+      _photoPath = null;
+    });
   }
 
   Future<void> _initializeCameras() async {
@@ -131,7 +147,11 @@ class _RecordPageState extends State<RecordPage> {
     }
   }
 
-  Future<void> _openMaps() async {
+  Future<void> _sendData() async {
+    if (_formKey.currentState!.validate())
+      setState(() {
+        _isSending = true;
+      });
     if (_location != null) {
       final coordinates = _location!.split(', ');
       if (coordinates.length == 2) {
@@ -140,7 +160,10 @@ class _RecordPageState extends State<RecordPage> {
         final mapsUrl = 'https://www.google.com/maps?q=$lat,$long';
 
         if (await canLaunch(mapsUrl)) {
-          await launch(mapsUrl);
+          _location = mapsUrl;
+          setState(() {
+            _uploadData();
+          });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Tidak dapat membuka peta.')),
@@ -158,72 +181,312 @@ class _RecordPageState extends State<RecordPage> {
     }
   }
 
+  Future<void> saveData(
+      String name, String nim, String location, String photoUrl) async {
+    await _dbRef.push().set({
+      "name": name,
+      "nim": nim,
+      "location": location,
+      "photoUrl": photoUrl,
+      "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+    });
+  }
+
+  Future<List<Map>> fetchData() async {
+    final snapshot = await _dbRef.get();
+    if (snapshot.exists) {
+      final data = snapshot.value as Map;
+      return data.entries.map((e) {
+        final key = e.key;
+        final value = e.value as Map;
+        return {
+          "id": key,
+          ...value,
+        };
+      }).toList();
+    }
+    return [];
+  }
+
+  static Future<String> uploadImage(File imageFile) async {
+    final url = Uri.parse('https://api.imgur.com/3/image');
+    final request = http.MultipartRequest('POST', url)
+      ..fields['type'] = 'file'
+      ..headers['Authorization'] = 'Client-ID $clientId'
+      ..files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+
+    final response = await request.send();
+    final responseData = await http.Response.fromStream(response);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(responseData.body);
+      return data['data']['link'];
+    } else {
+      throw Exception('Failed to upload image to Imgur');
+    }
+  }
+
+  Future<void> _uploadData() async {
+    if (_nameController.text.isNotEmpty && _nimController.text.isNotEmpty) {
+      try {
+        // 1. Upload foto ke Imgur
+        final photoUrl = await uploadImage(File(_photoPath!));
+
+        // 2. Simpan data ke Firebase
+        await saveData(
+          _nameController.text,
+          _nimController.text,
+          _location!,
+          photoUrl,
+        );
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Upload Berhasil"),
+              content: Text(
+                  "Data berhasil disimpan. Silahkan kembali ke Halaman Utama"),
+              actions: [
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+        Navigator.pushReplacementNamed(context, "/home");
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to upload data: $e")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double statusBarHeight = MediaQuery.of(context).padding.top;
+    double appBarHeight = kToolbarHeight;
+    double availableHeight = screenHeight - statusBarHeight - appBarHeight;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lokasi & Swafoto'),
+        backgroundColor: Colors.green[900],
+        title: Text(
+          'Isi Daftar Hadir',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: Container(
+          margin: const EdgeInsets.only(left: 16),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
       ),
-      body: Stack(
+      body: ListView(
         children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Stack(
             children: [
-              if (_cameraController != null &&
-                  _cameraController!.value.isInitialized)
-                AspectRatio(
-                  aspectRatio: _cameraController!.value.aspectRatio,
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..rotateZ(90 * 3.14159 / 180)
-                      ..rotateY(3.14159),
-                    child: CameraPreview(_cameraController!),
-                  ),
-                )
+              if (_photoPath == null)
+                if (_cameraController != null &&
+                    _cameraController!.value.isInitialized)
+                  Container(
+                    height: availableHeight,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Ambil Foto Anda",
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 75),
+                        AspectRatio(
+                          aspectRatio: _cameraController!.value.aspectRatio,
+                          child: Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..rotateZ(90 * 3.14159 / 180)
+                              ..rotateY(3.14159),
+                            child: CameraPreview(_cameraController!),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        IconButton(
+                          iconSize: 30,
+                          onPressed: _captureLocationAndPhoto,
+                          style: ButtonStyle(
+                            padding:
+                                WidgetStatePropertyAll(EdgeInsets.all(16.0)),
+                            shadowColor: WidgetStatePropertyAll(Colors.black),
+                            shape: MaterialStateProperty.all<
+                                RoundedRectangleBorder>(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30.0),
+                              ),
+                            ),
+                            backgroundColor:
+                                MaterialStateProperty.all<Color>(Colors.white),
+                            elevation: MaterialStateProperty.all<double>(2.0),
+                          ),
+                          icon: Icon(Icons.camera_alt),
+                        ),
+                        SizedBox(height: 75),
+                      ],
+                    ),
+                  )
+                else
+                  Center(
+                    child: CircularProgressIndicator(),
+                  )
               else
-                Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _captureLocationAndPhoto,
-                child: Text('Ambil Lokasi & Swafoto'),
-              ),
-              const SizedBox(height: 20),
-              if (_location != null)
-                Column(
-                  children: [
-                    Text(
-                      'Lokasi: $_location',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    ElevatedButton(
-                      onPressed: _openMaps,
-                      child: Text('Buka di Google Maps'),
-                    ),
-                  ],
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20.0),
+                        child: Text(
+                          "Isi Data Anda",
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Image.file(
+                        File(_photoPath!),
+                        width: MediaQuery.of(context).size.width * 0.7,
+                        fit: BoxFit.cover,
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () => setState(() {
+                              _photoPath = null;
+                            }),
+                            style: ButtonStyle(
+                              padding:
+                                  WidgetStatePropertyAll(EdgeInsets.all(8.0)),
+                              shape: MaterialStateProperty.all<
+                                  RoundedRectangleBorder>(
+                                RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30.0),
+                                ),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _photoPath = null;
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                            ),
+                            child: Text(
+                              "Ambil Ulang",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[900]),
+                            ),
+                          ),
+                          SizedBox(width: 20),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 40.0,
+                          vertical: 10.0,
+                        ),
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(),
+                                labelText: 'Nama',
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your name';
+                                }
+                                return null;
+                              },
+                            ),
+                            SizedBox(
+                              height: 20,
+                            ),
+                            TextFormField(
+                              controller: _nimController,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(),
+                                labelText: 'NIM',
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your NIM';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      _isSending
+                          ? CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: _sendData,
+                              child: Text(
+                                'Kirim',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                minimumSize: Size(125, 50),
+                                elevation: 5,
+                                shadowColor: Colors.grey,
+                              ),
+                            ),
+                      SizedBox(height: 20),
+                    ],
+                  ),
                 ),
-              const SizedBox(height: 20),
-              if (_photoPath != null)
-                Column(
-                  children: [
-                    Text('Swafoto berhasil diambil!',
-                        style: TextStyle(fontSize: 16)),
-                    const SizedBox(height: 10),
-                    Image.file(
-                      File(_photoPath!),
-                      height: 200,
-                      fit: BoxFit.cover,
-                    ),
-                  ],
+              if (_isProcessing)
+                Container(
+                  height: screenHeight,
+                  color: Colors.black45,
+                  child: Center(child: CircularProgressIndicator()),
                 ),
             ],
           ),
-          if (_isProcessing)
-            Container(
-              color: Colors.black45,
-              child: Center(child: CircularProgressIndicator()),
-            ),
         ],
       ),
     );

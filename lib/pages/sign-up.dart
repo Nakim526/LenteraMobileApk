@@ -90,8 +90,23 @@ class _SignUpPageState extends State<SignUpPage> {
     double availableHeight = screenHeight - statusBarHeight - appBarHeight;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.lightGreenAccent,
-        title: Text('Kembali Login'),
+        backgroundColor: Colors.green[900],
+        title: Text(
+          'Kembali Login',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: Container(
+          margin: const EdgeInsets.only(left: 16),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -135,7 +150,7 @@ class _SignUpPageState extends State<SignUpPage> {
                             decoration: InputDecoration(labelText: 'Username'),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
+                                return 'Please enter your username';
                               }
                               return null;
                             },

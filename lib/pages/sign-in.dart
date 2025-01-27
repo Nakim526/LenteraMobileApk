@@ -3,12 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class LoginPage extends StatefulWidget {
+class SignInPage extends StatefulWidget {
   @override
-  _LoginPageState createState() => _LoginPageState();
+  _SignInPageState createState() => _SignInPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _SignInPageState extends State<SignInPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -57,10 +57,6 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       try {
-        setState(() {
-          _isLoading = true;
-        });
-
         // Proses login
         UserCredential userCredential =
             await FirebaseAuth.instance.signInWithEmailAndPassword(
