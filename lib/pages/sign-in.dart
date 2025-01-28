@@ -57,12 +57,21 @@ class _SignInPageState extends State<SignInPage> {
       final databaseRef = FirebaseDatabase.instance.ref();
       final userRef = databaseRef.child('users').child(user.uid);
 
-      // Simpan data pengguna
-      await userRef.set({
-        'uid': user.uid,
-        'email': user.email,
-        'name': user.displayName ?? 'Unknown',
-      });
+      final snapshot = await userRef.get();
+      if (!snapshot.exists) {
+        await userRef.set({
+          'uid': user.uid,
+          'email': user.email,
+          'name': user.displayName ?? 'Unknown',
+        });
+      }
+
+      if (user.displayName != null) {
+        await userRef.update({
+          'email': user.email,
+          'name': user.displayName ?? 'Anonymous',
+        });
+      }
     }
   }
 

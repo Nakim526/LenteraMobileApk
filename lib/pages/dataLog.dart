@@ -115,6 +115,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                   'Nama: ${data![key]['name']}',
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                trailing: Icon(Icons.arrow_forward_ios),
                                 onTap: () {
                                   setState(() {
                                     _isVisible = true;
@@ -137,30 +138,42 @@ class _DataLogPageState extends State<DataLogPage> {
                       children: [
                         if (_isProcessing)
                           Container(
+                            height: MediaQuery.of(context).size.height * 0.4,
                             child: Center(
                               child: CircularProgressIndicator(),
                             ),
                           ),
                         Container(
-                          width: MediaQuery.of(context).size.width * 0.7,
+                          height: MediaQuery.of(context).size.height * 0.4,
                           margin: EdgeInsets.only(bottom: 10.0),
                           child: Image.network(
                             data![keyId]['photoUrl'],
                             loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) {
+                              try {
+                                if (loadingProgress == null) {
+                                  return child; // Tampilkan gambar
+                                } else {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    setState(() {
+                                      _isProcessing = false;
+                                    });
+                                  });
+                                  return Container(
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
                                 return child; // Tampilkan gambar
-                              } else {
+                              } finally {
                                 WidgetsBinding.instance
                                     .addPostFrameCallback((_) {
                                   setState(() {
                                     _isProcessing = false;
                                   });
                                 });
-                                return Container(
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
                               }
                             },
                           ),

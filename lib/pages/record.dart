@@ -26,6 +26,7 @@ class _RecordPageState extends State<RecordPage> {
   String? _photoPath;
   bool _isProcessing = false;
   bool _isSending = false;
+  bool _isCaptured = false;
   List<CameraDescription>? cameras;
   Map<String, dynamic>? _userData;
 
@@ -68,11 +69,17 @@ class _RecordPageState extends State<RecordPage> {
     );
 
     try {
+      setState(() {
+        _isProcessing = true;
+      });
       await _cameraController!.initialize();
-      setState(() {});
     } catch (e) {
       setState(() {
         _location = 'Error kamera: $e';
+      });
+    } finally {
+      setState(() {
+        _isProcessing = false;
       });
     }
   }
@@ -295,228 +302,253 @@ class _RecordPageState extends State<RecordPage> {
     double statusBarHeight = MediaQuery.of(context).padding.top;
     double appBarHeight = kToolbarHeight;
     double availableHeight = screenHeight - statusBarHeight - appBarHeight;
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            backgroundColor: Colors.green[900],
-            title: Text(
-              'Isi Daftar Hadir',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isCaptured) {
+          setState(() {
+            _isCaptured = false;
+            _photoPath = null;
+          });
+          return false; // Mencegah aplikasi keluar, hanya tutup tampilan detail.
+        }
+        return true;
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              backgroundColor: Colors.green[900],
+              title: Text(
+                'Isi Daftar Hadir',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              leading: Container(
+                margin: const EdgeInsets.only(left: 16),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () {
+                    if (_isCaptured) {
+                      setState(() {
+                        _isCaptured = false;
+                        _photoPath = null;
+                      });
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
               ),
             ),
-            leading: Container(
-              margin: const EdgeInsets.only(left: 16),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-          ),
-          body: ListView(
-            children: [
-              Stack(
-                children: [
-                  if (_photoPath == null)
-                    if (_cameraController != null &&
-                        _cameraController!.value.isInitialized)
-                      Container(
-                        height: availableHeight,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Ambil Foto Anda",
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 75),
-                            AspectRatio(
-                              aspectRatio: _cameraController!.value.aspectRatio,
-                              child: Transform(
-                                alignment: Alignment.center,
-                                transform: Matrix4.identity()
-                                  ..rotateZ(90 * 3.14159 / 180)
-                                  ..rotateY(3.14159),
-                                child: CameraPreview(_cameraController!),
-                              ),
-                            ),
-                            SizedBox(height: 12),
-                            IconButton(
-                              iconSize: 30,
-                              onPressed: () {
-                                _captureLocationAndPhoto();
-                                _loadUserData();
-                              },
-                              style: ButtonStyle(
-                                padding: WidgetStatePropertyAll(
-                                    EdgeInsets.all(16.0)),
-                                shadowColor:
-                                    WidgetStatePropertyAll(Colors.black),
-                                shape: MaterialStateProperty.all<
-                                    RoundedRectangleBorder>(
-                                  RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30.0),
-                                  ),
-                                ),
-                                backgroundColor:
-                                    MaterialStateProperty.all<Color>(
-                                        Colors.white),
-                                elevation:
-                                    MaterialStateProperty.all<double>(2.0),
-                              ),
-                              icon: Icon(Icons.camera_alt),
-                            ),
-                            SizedBox(height: 75),
-                          ],
-                        ),
-                      )
-                    else
-                      Center(
-                        child: CircularProgressIndicator(),
-                      )
-                  else
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20.0),
-                            child: Text(
-                              "Isi Data Anda",
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Image.file(
-                            File(_photoPath!),
-                            width: MediaQuery.of(context).size.width * 0.7,
-                            fit: BoxFit.cover,
-                          ),
-                          Row(
+            body: ListView(
+              children: [
+                Stack(
+                  children: [
+                    if (_photoPath == null)
+                      if (_cameraController != null &&
+                          _cameraController!.value.isInitialized)
+                        Container(
+                          height: availableHeight,
+                          child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              Text(
+                                "Ambil Foto Anda",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 75),
+                              AspectRatio(
+                                aspectRatio:
+                                    _cameraController!.value.aspectRatio,
+                                child: Transform(
+                                  alignment: Alignment.center,
+                                  transform: Matrix4.identity()
+                                    ..rotateZ(90 * 3.14159 / 180)
+                                    ..rotateY(3.14159),
+                                  child: CameraPreview(_cameraController!),
+                                ),
+                              ),
+                              SizedBox(height: 12),
                               IconButton(
-                                icon: Icon(Icons.delete),
-                                onPressed: () => setState(() {
-                                  _photoPath = null;
-                                }),
+                                iconSize: 30,
+                                onPressed: () {
+                                  _captureLocationAndPhoto();
+                                  _loadUserData();
+                                  setState(() {
+                                    _isCaptured = true;
+                                  });
+                                },
                                 style: ButtonStyle(
                                   padding: WidgetStatePropertyAll(
-                                      EdgeInsets.all(8.0)),
+                                      EdgeInsets.all(16.0)),
+                                  shadowColor:
+                                      WidgetStatePropertyAll(Colors.black),
                                   shape: MaterialStateProperty.all<
                                       RoundedRectangleBorder>(
                                     RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30.0),
                                     ),
                                   ),
+                                  backgroundColor:
+                                      MaterialStateProperty.all<Color>(
+                                          Colors.white),
+                                  elevation:
+                                      MaterialStateProperty.all<double>(2.0),
                                 ),
+                                icon: Icon(Icons.camera_alt),
                               ),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _photoPath = null;
-                                  });
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                ),
-                                child: Text(
-                                  "Ambil Ulang",
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue[900]),
-                                ),
-                              ),
-                              SizedBox(width: 20),
+                              SizedBox(height: 75),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40.0,
-                              vertical: 10.0,
+                        )
+                      else
+                        Center()
+                    else if (_photoPath != null)
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 20.0),
+                              child: Text(
+                                "Isi Data Anda",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                            child: Column(
+                            Image.file(
+                              File(_photoPath!),
+                              width: MediaQuery.of(context).size.width * 0.7,
+                              fit: BoxFit.cover,
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                TextFormField(
-                                  controller: _nameController,
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(),
-                                    labelText: 'Nama',
+                                IconButton(
+                                  icon: Icon(Icons.delete),
+                                  onPressed: () => setState(() {
+                                    _isCaptured = false;
+                                    _photoPath = null;
+                                  }),
+                                  style: ButtonStyle(
+                                    padding: WidgetStatePropertyAll(
+                                        EdgeInsets.all(8.0)),
+                                    shape: MaterialStateProperty.all<
+                                        RoundedRectangleBorder>(
+                                      RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(30.0),
+                                      ),
+                                    ),
                                   ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your name';
-                                    }
-                                    return null;
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isCaptured = false;
+                                      _photoPath = null;
+                                    });
                                   },
-                                ),
-                                SizedBox(
-                                  height: 20,
-                                ),
-                                TextFormField(
-                                  controller: _nimController,
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(),
-                                    labelText: 'NIM',
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
                                   ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your NIM';
-                                    }
-                                    return null;
-                                  },
+                                  child: Text(
+                                    "Ambil Ulang",
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue[900]),
+                                  ),
                                 ),
+                                SizedBox(width: 20),
                               ],
                             ),
-                          ),
-                          SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _sendData,
-                            child: Text(
-                              'Kirim',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 40.0,
+                                vertical: 10.0,
+                              ),
+                              child: Column(
+                                children: [
+                                  TextFormField(
+                                    controller: _nameController,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(),
+                                      labelText: 'Nama',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter your name';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  SizedBox(
+                                    height: 20,
+                                  ),
+                                  TextFormField(
+                                    controller: _nimController,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(),
+                                      labelText: 'NIM',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter your NIM';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
+                            SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _sendData,
+                              child: Text(
+                                'Kirim',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              minimumSize: Size(125, 50),
-                              elevation: 5,
-                              shadowColor: Colors.grey,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                minimumSize: Size(125, 50),
+                                elevation: 5,
+                                shadowColor: Colors.grey,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 20),
-                        ],
+                            SizedBox(height: 20),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        if (_isProcessing || _isSending)
-          Container(
-            color: Colors.black45,
-            child: Center(child: CircularProgressIndicator()),
-          ),
-      ],
+          if (_isProcessing || _isSending)
+            Container(
+              color: Colors.black45,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
     );
   }
 }
