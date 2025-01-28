@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:camera/camera.dart';
@@ -26,6 +27,7 @@ class _RecordPageState extends State<RecordPage> {
   bool _isProcessing = false;
   bool _isSending = false;
   List<CameraDescription>? cameras;
+  Map<String, dynamic>? _userData;
 
   @override
   void initState() {
@@ -147,6 +149,21 @@ class _RecordPageState extends State<RecordPage> {
     }
   }
 
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final databaseRef = FirebaseDatabase.instance.ref();
+      final snapshot = await databaseRef.child('users/${user.uid}').get();
+      if (snapshot.exists) {
+        setState(() {
+          _userData = Map<String, dynamic>.from(snapshot.value as Map);
+          _nameController.text = _userData?['name'] ?? '';
+          _nimController.text = _userData?['nim'] ?? '';
+        });
+      }
+    }
+  }
+
   Future<void> _sendData() async {
     if (_formKey.currentState!.validate())
       setState(() {
@@ -183,27 +200,31 @@ class _RecordPageState extends State<RecordPage> {
 
   Future<void> saveData(
       String name, String nim, String location, String photoUrl) async {
-    await _dbRef.push().set({
-      "name": name,
-      "nim": nim,
-      "location": location,
-      "photoUrl": photoUrl,
-      "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
-    });
+    await _dbRef.push().set(
+      {
+        "name": name,
+        "nim": nim,
+        "location": location,
+        "photoUrl": photoUrl,
+        "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+      },
+    );
   }
 
   Future<List<Map>> fetchData() async {
     final snapshot = await _dbRef.get();
     if (snapshot.exists) {
       final data = snapshot.value as Map;
-      return data.entries.map((e) {
-        final key = e.key;
-        final value = e.value as Map;
-        return {
-          "id": key,
-          ...value,
-        };
-      }).toList();
+      return data.entries.map(
+        (e) {
+          final key = e.key;
+          final value = e.value as Map;
+          return {
+            "id": key,
+            ...value,
+          };
+        },
+      ).toList();
     }
     return [];
   }
@@ -247,7 +268,7 @@ class _RecordPageState extends State<RecordPage> {
             return AlertDialog(
               title: Text("Upload Berhasil"),
               content: Text(
-                  "Data berhasil disimpan. Silahkan kembali ke Halaman Utama"),
+                  "Data berhasil disimpan. Silahkan kembali ke halaman utama."),
               actions: [
                 TextButton(
                   child: Text("OK"),
@@ -274,221 +295,228 @@ class _RecordPageState extends State<RecordPage> {
     double statusBarHeight = MediaQuery.of(context).padding.top;
     double appBarHeight = kToolbarHeight;
     double availableHeight = screenHeight - statusBarHeight - appBarHeight;
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.green[900],
-        title: Text(
-          'Isi Daftar Hadir',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.green[900],
+            title: Text(
+              'Isi Daftar Hadir',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            leading: Container(
+              margin: const EdgeInsets.only(left: 16),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ),
           ),
-        ),
-        leading: Container(
-          margin: const EdgeInsets.only(left: 16),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-        ),
-      ),
-      body: ListView(
-        children: [
-          Stack(
+          body: ListView(
             children: [
-              if (_photoPath == null)
-                if (_cameraController != null &&
-                    _cameraController!.value.isInitialized)
-                  Container(
-                    height: availableHeight,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Ambil Foto Anda",
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 75),
-                        AspectRatio(
-                          aspectRatio: _cameraController!.value.aspectRatio,
-                          child: Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.identity()
-                              ..rotateZ(90 * 3.14159 / 180)
-                              ..rotateY(3.14159),
-                            child: CameraPreview(_cameraController!),
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        IconButton(
-                          iconSize: 30,
-                          onPressed: _captureLocationAndPhoto,
-                          style: ButtonStyle(
-                            padding:
-                                WidgetStatePropertyAll(EdgeInsets.all(16.0)),
-                            shadowColor: WidgetStatePropertyAll(Colors.black),
-                            shape: MaterialStateProperty.all<
-                                RoundedRectangleBorder>(
-                              RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30.0),
-                              ),
-                            ),
-                            backgroundColor:
-                                MaterialStateProperty.all<Color>(Colors.white),
-                            elevation: MaterialStateProperty.all<double>(2.0),
-                          ),
-                          icon: Icon(Icons.camera_alt),
-                        ),
-                        SizedBox(height: 75),
-                      ],
-                    ),
-                  )
-                else
-                  Center(
-                    child: CircularProgressIndicator(),
-                  )
-              else
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20.0),
-                        child: Text(
-                          "Isi Data Anda",
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Image.file(
-                        File(_photoPath!),
-                        width: MediaQuery.of(context).size.width * 0.7,
-                        fit: BoxFit.cover,
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () => setState(() {
-                              _photoPath = null;
-                            }),
-                            style: ButtonStyle(
-                              padding:
-                                  WidgetStatePropertyAll(EdgeInsets.all(8.0)),
-                              shape: MaterialStateProperty.all<
-                                  RoundedRectangleBorder>(
-                                RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                ),
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _photoPath = null;
-                              });
-                            },
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                            ),
-                            child: Text(
-                              "Ambil Ulang",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue[900]),
-                            ),
-                          ),
-                          SizedBox(width: 20),
-                        ],
-                      ),
+              Stack(
+                children: [
+                  if (_photoPath == null)
+                    if (_cameraController != null &&
+                        _cameraController!.value.isInitialized)
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40.0,
-                          vertical: 10.0,
-                        ),
+                        height: availableHeight,
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                labelText: 'Nama',
+                            Text(
+                              "Ambil Foto Anda",
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your name';
-                                }
-                                return null;
-                              },
                             ),
-                            SizedBox(
-                              height: 20,
-                            ),
-                            TextFormField(
-                              controller: _nimController,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                labelText: 'NIM',
+                            SizedBox(height: 75),
+                            AspectRatio(
+                              aspectRatio: _cameraController!.value.aspectRatio,
+                              child: Transform(
+                                alignment: Alignment.center,
+                                transform: Matrix4.identity()
+                                  ..rotateZ(90 * 3.14159 / 180)
+                                  ..rotateY(3.14159),
+                                child: CameraPreview(_cameraController!),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your NIM';
-                                }
-                                return null;
-                              },
                             ),
+                            SizedBox(height: 12),
+                            IconButton(
+                              iconSize: 30,
+                              onPressed: () {
+                                _captureLocationAndPhoto();
+                                _loadUserData();
+                              },
+                              style: ButtonStyle(
+                                padding: WidgetStatePropertyAll(
+                                    EdgeInsets.all(16.0)),
+                                shadowColor:
+                                    WidgetStatePropertyAll(Colors.black),
+                                shape: MaterialStateProperty.all<
+                                    RoundedRectangleBorder>(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30.0),
+                                  ),
+                                ),
+                                backgroundColor:
+                                    MaterialStateProperty.all<Color>(
+                                        Colors.white),
+                                elevation:
+                                    MaterialStateProperty.all<double>(2.0),
+                              ),
+                              icon: Icon(Icons.camera_alt),
+                            ),
+                            SizedBox(height: 75),
                           ],
                         ),
-                      ),
-                      SizedBox(height: 16),
-                      _isSending
-                          ? CircularProgressIndicator()
-                          : ElevatedButton(
-                              onPressed: _sendData,
-                              child: Text(
-                                'Kirim',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                minimumSize: Size(125, 50),
-                                elevation: 5,
-                                shadowColor: Colors.grey,
+                      )
+                    else
+                      Center(
+                        child: CircularProgressIndicator(),
+                      )
+                  else
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20.0),
+                            child: Text(
+                              "Isi Data Anda",
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                      SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              if (_isProcessing)
-                Container(
-                  height: screenHeight,
-                  color: Colors.black45,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+                          ),
+                          Image.file(
+                            File(_photoPath!),
+                            width: MediaQuery.of(context).size.width * 0.7,
+                            fit: BoxFit.cover,
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () => setState(() {
+                                  _photoPath = null;
+                                }),
+                                style: ButtonStyle(
+                                  padding: WidgetStatePropertyAll(
+                                      EdgeInsets.all(8.0)),
+                                  shape: MaterialStateProperty.all<
+                                      RoundedRectangleBorder>(
+                                    RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30.0),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _photoPath = null;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                ),
+                                child: Text(
+                                  "Ambil Ulang",
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[900]),
+                                ),
+                              ),
+                              SizedBox(width: 20),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40.0,
+                              vertical: 10.0,
+                            ),
+                            child: Column(
+                              children: [
+                                TextFormField(
+                                  controller: _nameController,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(),
+                                    labelText: 'Nama',
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter your name';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                SizedBox(
+                                  height: 20,
+                                ),
+                                TextFormField(
+                                  controller: _nimController,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(),
+                                    labelText: 'NIM',
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter your NIM';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _sendData,
+                            child: Text(
+                              'Kirim',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                              minimumSize: Size(125, 50),
+                              elevation: 5,
+                              shadowColor: Colors.grey,
+                            ),
+                          ),
+                          SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        ),
+        if (_isProcessing || _isSending)
+          Container(
+            color: Colors.black45,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
     );
   }
 }

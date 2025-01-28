@@ -114,6 +114,7 @@ class HomePage extends StatelessWidget {
           ),
         ),
         child: ListView.builder(
+          padding: EdgeInsets.symmetric(vertical: 8.0),
           itemCount: matkul.length,
           itemBuilder: (context, index) {
             return Container(
@@ -121,18 +122,19 @@ class HomePage extends StatelessWidget {
                 horizontal: 20.0,
                 vertical: 8.0,
               ),
-              decoration: BoxDecoration(
-                color: Colors.green.shade200,
+              child: Material(
+                color: Colors.green.shade100,
+                elevation: 4.0,
+                clipBehavior: Clip.hardEdge,
                 borderRadius: BorderRadius.circular(16.0),
-              ),
-              child: ListTile(
-                title: Text(matkul[index]),
-                subtitle: Text('Pertemuan ke-1'),
-                leading: Icon(Icons.lens),
-                trailing: Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  Navigator.pushNamed(context, '/record');
-                },
+                child: ListTile(
+                  title: Text(matkul[index]),
+                  subtitle: Text('Pertemuan ke-1'),
+                  trailing: Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    Navigator.pushNamed(context, '/record');
+                  },
+                ),
               ),
             );
           },

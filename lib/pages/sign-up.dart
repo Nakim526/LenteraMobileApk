@@ -1,3 +1,4 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -7,12 +8,28 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("users");
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  Future<void> saveUserDataToDatabase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final databaseRef = FirebaseDatabase.instance.ref();
+      final userRef = databaseRef.child('users').child(user.uid);
+
+      // Simpan data pengguna
+      await userRef.set({
+        'uid': user.uid,
+        'email': user.email,
+        'name': _usernameController.text.trim(),
+      });
+    }
+  }
 
   Future<void> _signUp() async {
     if (_formKey.currentState!.validate()) {
@@ -48,6 +65,9 @@ class _SignUpPageState extends State<SignUpPage> {
             );
           },
         );
+
+        // Simpan data pengguna ke Firebase Realtime Database
+        await saveUserDataToDatabase();
 
         // Kembali ke halaman login
         Navigator.pop(context);
