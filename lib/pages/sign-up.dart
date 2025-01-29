@@ -166,7 +166,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         children: [
                           TextFormField(
                             controller: _usernameController,
-                            decoration: InputDecoration(labelText: 'Username'),
+                            decoration: InputDecoration(
+                              labelText: 'Nama Lengkap',
+                            ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your username';
@@ -177,7 +179,8 @@ class _SignUpPageState extends State<SignUpPage> {
                           SizedBox(height: 16),
                           TextFormField(
                             controller: _emailController,
-                            decoration: InputDecoration(labelText: 'Email'),
+                            decoration:
+                                InputDecoration(labelText: 'Email Baru'),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
@@ -188,7 +191,8 @@ class _SignUpPageState extends State<SignUpPage> {
                           SizedBox(height: 16),
                           TextFormField(
                             controller: _passwordController,
-                            decoration: InputDecoration(labelText: 'Password'),
+                            decoration:
+                                InputDecoration(labelText: 'Password Baru'),
                             obscureText: true,
                             validator: (value) {
                               if (value == null || value.isEmpty) {

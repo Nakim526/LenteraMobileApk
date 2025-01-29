@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -174,188 +175,214 @@ class _SignInPageState extends State<SignInPage> {
     }
   }
 
+  Future<bool> _onExitConfirmation(BuildContext context) async {
+    return await showDialog(
+          barrierDismissible: false,
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text("Keluar Aplikasi"),
+            content: Text("Apakah Anda yakin ingin keluar?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text("Batal"),
+              ),
+              TextButton(
+                onPressed: () => SystemNavigator.pop(), // Keluar
+                child: Text("Keluar"),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     double screenHeight = MediaQuery.of(context).size.height;
     double statusBarHeight = MediaQuery.of(context).padding.top;
     double availableHeight = screenHeight - statusBarHeight;
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.lightGreenAccent,
-                  Colors.green,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return WillPopScope(
+      onWillPop: () => _onExitConfirmation(context),
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.lightGreenAccent,
+                    Colors.green,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-            ),
-            child: ListView(
-              children: [
-                Container(
-                  height: availableHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 30.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'LENTERA MOBILE',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(vertical: 50.0),
-                              child: Image.asset(
-                                "lib/assets/logo UINAM.png",
-                                width: 100,
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.all(20.0),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20.0),
-                                color: Colors.green,
-                              ),
-                              child: Column(
-                                children: [
-                                  TextFormField(
-                                    controller: _emailController,
-                                    decoration:
-                                        InputDecoration(labelText: 'Email'),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your email';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  SizedBox(height: 16),
-                                  TextFormField(
-                                    controller: _passwordController,
-                                    decoration:
-                                        InputDecoration(labelText: 'Password'),
-                                    obscureText: true,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your password';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Text("Belum punya akun?"),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pushNamed(
-                                              context, '/sign-up');
-                                        },
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                        ),
-                                        child: Text(
-                                          " Daftar disini!",
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.blue[900]),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: 24),
-                            ElevatedButton(
-                              onPressed: _loginWithEmail,
-                              child: Text('Masuk'),
-                            ),
-                            SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(child: Divider()),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text('atau'),
+              child: ListView(
+                children: [
+                  Container(
+                    height: availableHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'LENTERA MOBILE',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                Expanded(child: Divider()),
-                              ],
-                            ),
-                            SizedBox(height: 16),
-                            Container(
-                              width: MediaQuery.of(context).size.width,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    height: 45,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(26.0),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          offset: Offset(0, 1),
-                                          blurRadius: 1.0,
+                              ),
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 50.0),
+                                child: Image.asset(
+                                  "lib/assets/logo UINAM.png",
+                                  width: 100,
+                                ),
+                              ),
+                              Container(
+                                padding: EdgeInsets.all(20.0),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20.0),
+                                  color: Colors.green,
+                                ),
+                                child: Column(
+                                  children: [
+                                    TextFormField(
+                                      controller: _emailController,
+                                      decoration:
+                                          InputDecoration(labelText: 'Email'),
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your email';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    SizedBox(height: 16),
+                                    TextFormField(
+                                      controller: _passwordController,
+                                      decoration: InputDecoration(
+                                          labelText: 'Password'),
+                                      obscureText: true,
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your password';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Text("Belum punya akun?"),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.pushNamed(
+                                                context, '/sign-up');
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                          ),
+                                          child: Text(
+                                            " Daftar disini!",
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.blue[900]),
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    child: TextButton(
-                                      onPressed: () {
-                                        _loginWithGoogle();
-                                      },
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(26.0),
-                                        ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 24),
+                              ElevatedButton(
+                                onPressed: _loginWithEmail,
+                                child: Text('Masuk'),
+                              ),
+                              SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Text('atau'),
+                                  ),
+                                  Expanded(child: Divider()),
+                                ],
+                              ),
+                              SizedBox(height: 16),
+                              Container(
+                                width: MediaQuery.of(context).size.width,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      height: 45,
+                                      decoration: BoxDecoration(
+                                        borderRadius:
+                                            BorderRadius.circular(26.0),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black26,
+                                            offset: Offset(0, 1),
+                                            blurRadius: 1.0,
+                                          ),
+                                        ],
                                       ),
-                                      child: Container(
-                                        child: Row(
-                                          children: [
-                                            Image.asset(
-                                              "lib/assets/icon Google.png",
-                                              width: 20,
-                                            ),
-                                            SizedBox(width: 10.0),
-                                            Text("Masuk dengan Google"),
-                                          ],
+                                      child: TextButton(
+                                        onPressed: () {
+                                          _loginWithGoogle();
+                                        },
+                                        style: TextButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(26.0),
+                                          ),
+                                        ),
+                                        child: Container(
+                                          child: Row(
+                                            children: [
+                                              Image.asset(
+                                                "lib/assets/icon Google.png",
+                                                width: 20,
+                                              ),
+                                              SizedBox(width: 10.0),
+                                              Text("Masuk dengan Google"),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (_isLoading)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: CircularProgressIndicator(),
+                ],
               ),
             ),
-        ],
+            if (_isLoading)
+              Container(
+                color: Colors.black54,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
