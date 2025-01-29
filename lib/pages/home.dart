@@ -72,7 +72,7 @@ class HomePage extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.notes),
+              leading: Icon(Icons.description),
               title: Text('Notes'),
               onTap: () {
                 Navigator.pop(context);

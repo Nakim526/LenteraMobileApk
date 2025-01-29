@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,18 +11,29 @@ class DataLogPage extends StatefulWidget {
 class _DataLogPageState extends State<DataLogPage> {
   final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
   Map<dynamic, dynamic>? data;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _isVisible = false;
   bool _isProcessing = false;
   String? keyId;
 
   Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final snapshot = await _databaseRef.child('uploads').get();
-      if (snapshot.exists) {
-        setState(() {
-          data = snapshot.value as Map<dynamic, dynamic>;
-        });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final snapshot = await _databaseRef.child('uploads').get();
+        if (snapshot.exists) {
+          setState(() {
+            data = snapshot.value as Map<dynamic, dynamic>;
+          });
+        } else {
+          setState(() {
+            data = null;
+          });
+        }
       }
     } finally {
       setState(() {
@@ -75,6 +87,19 @@ class _DataLogPageState extends State<DataLogPage> {
               },
             ),
           ),
+          actions: [
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              child: IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _fetchData();
+                  });
+                },
+              ),
+            ),
+          ],
         ),
         body: Stack(
           children: [
@@ -84,6 +109,7 @@ class _DataLogPageState extends State<DataLogPage> {
                       children: [
                         _isLoading
                             ? Container(
+                                color: Colors.black45,
                                 child:
                                     Center(child: CircularProgressIndicator()))
                             : Container(
