@@ -22,6 +22,8 @@ class _RecordPageState extends State<RecordPage> {
   final _formKey = GlobalKey<FormState>();
   static const String clientId = "ca88e99d5b919db";
   CameraController? _cameraController;
+  String? _selectedValue;
+  String? _lesson;
   String? _location;
   String? _photoPath;
   bool _isProcessing = false;
@@ -34,12 +36,6 @@ class _RecordPageState extends State<RecordPage> {
   void initState() {
     super.initState();
     _initializeCameras();
-  }
-
-  void _retakePhoto() {
-    setState(() {
-      _photoPath = null;
-    });
   }
 
   Future<void> _initializeCameras() async {
@@ -205,12 +201,14 @@ class _RecordPageState extends State<RecordPage> {
     }
   }
 
-  Future<void> saveData(
-      String name, String nim, String location, String photoUrl) async {
+  Future<void> saveData(String name, String nim, String attendance,
+      String lesson, String location, String photoUrl) async {
     await _dbRef.push().set(
       {
         "name": name,
         "nim": nim,
+        "attendance": attendance,
+        "lesson": lesson,
         "location": location,
         "photoUrl": photoUrl,
         "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
@@ -264,6 +262,8 @@ class _RecordPageState extends State<RecordPage> {
         await saveData(
           _nameController.text,
           _nimController.text,
+          _selectedValue!,
+          _lesson!,
           _location!,
           photoUrl,
         );
@@ -298,6 +298,7 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final String matkul = ModalRoute.of(context)!.settings.arguments as String;
     double screenHeight = MediaQuery.of(context).size.height;
     double statusBarHeight = MediaQuery.of(context).padding.top;
     double appBarHeight = kToolbarHeight;
@@ -319,7 +320,7 @@ class _RecordPageState extends State<RecordPage> {
             appBar: AppBar(
               backgroundColor: Colors.green[900],
               title: Text(
-                'Isi Daftar Hadir',
+                'Absensi',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -414,16 +415,19 @@ class _RecordPageState extends State<RecordPage> {
                         key: _formKey,
                         child: Column(
                           children: [
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 20.0),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 20.0,
+                                horizontal: 25.0,
+                              ),
                               child: Text(
-                                "Isi Data Anda",
+                                matkul,
                                 style: TextStyle(
                                   fontSize: 20,
                                   color: Colors.black,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
                             Image.file(
@@ -509,20 +513,55 @@ class _RecordPageState extends State<RecordPage> {
                                       return null;
                                     },
                                   ),
+                                  SizedBox(
+                                    height: 20,
+                                  ),
+                                  DropdownButtonFormField<String>(
+                                    decoration: InputDecoration(
+                                      labelText: "Keterangan",
+                                      border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(5.0),
+                                      ),
+                                    ),
+                                    value: _selectedValue, // Nilai awal
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: "Hadir",
+                                        child: Text("Hadir"),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "Sakit",
+                                        child: Text("Sakit"),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: "Izin",
+                                        child: Text("Izin"),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedValue = value;
+                                      });
+                                    },
+                                    validator: (value) {
+                                      if (value == null) {
+                                        return 'Please select an option';
+                                      }
+                                      return null;
+                                    },
+                                  )
                                 ],
                               ),
                             ),
                             SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: _sendData,
-                              child: Text(
-                                'Kirim',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              onPressed: () {
+                                _sendData();
+                                setState(() {
+                                  _lesson = matkul;
+                                });
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 shape: RoundedRectangleBorder(
@@ -531,6 +570,14 @@ class _RecordPageState extends State<RecordPage> {
                                 minimumSize: Size(125, 50),
                                 elevation: 5,
                                 shadowColor: Colors.grey,
+                              ),
+                              child: Text(
+                                'Kirim',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             SizedBox(height: 20),

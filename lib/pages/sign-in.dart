@@ -15,42 +15,6 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-// Setelah login berhasil
-  Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      try {
-        UserCredential userCredential =
-            await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
-
-        // Simpan status login ke SharedPreferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true); // Menyimpan status login
-        await prefs.setString(
-          'userEmail',
-          _emailController.text,
-        ); // Simpan email pengguna
-
-        // Navigasi ke halaman utama
-        Navigator.pushReplacementNamed(context, '/home');
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: ${e.toString()}')),
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   Future<void> saveUserDataToDatabase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -62,7 +26,7 @@ class _SignInPageState extends State<SignInPage> {
         await userRef.set({
           'uid': user.uid,
           'email': user.email,
-          'name': user.displayName ?? 'Unknown',
+          'name': user.displayName ?? 'Anonymous',
         });
       }
 
@@ -125,13 +89,33 @@ class _SignInPageState extends State<SignInPage> {
         }
 
         // Menampilkan pesan error kepada pengguna
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Error'),
+            content: Text(errorMessage),
+            actions: [
+              TextButton(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       } catch (e) {
         // Error tak terduga
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan: ${e.toString()}')),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Error'),
+            content: Text('Login gagal. Silakan coba lagi.'),
+            actions: [
+              TextButton(
+                child: Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       } finally {
         setState(() {
@@ -174,8 +158,18 @@ class _SignInPageState extends State<SignInPage> {
       Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
       // Menampilkan pesan error jika login gagal
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google Login failed: ${e.toString()}')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Error'),
+          content: Text('Login gagal. Silakan coba lagi.'),
+          actions: [
+            TextButton(
+              child: Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
       );
     }
   }

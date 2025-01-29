@@ -72,6 +72,14 @@ class HomePage extends StatelessWidget {
               },
             ),
             ListTile(
+              leading: Icon(Icons.notes),
+              title: Text('Notes'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/notes');
+              },
+            ),
+            ListTile(
                 leading: Icon(Icons.logout),
                 title: Text('Sign Out'),
                 onTap: () {
@@ -128,11 +136,21 @@ class HomePage extends StatelessWidget {
                 clipBehavior: Clip.hardEdge,
                 borderRadius: BorderRadius.circular(16.0),
                 child: ListTile(
-                  title: Text(matkul[index]),
+                  title: Text(
+                    matkul[index],
+                    style: TextStyle(
+                      fontSize: 16.0,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   subtitle: Text('Pertemuan ke-1'),
                   trailing: Icon(Icons.arrow_forward_ios),
                   onTap: () {
-                    Navigator.pushNamed(context, '/record');
+                    Navigator.pushNamed(
+                      context,
+                      '/record',
+                      arguments: matkul[index],
+                    );
                   },
                 ),
               ),

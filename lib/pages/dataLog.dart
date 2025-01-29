@@ -10,6 +10,7 @@ class DataLogPage extends StatefulWidget {
 class _DataLogPageState extends State<DataLogPage> {
   final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
   Map<dynamic, dynamic>? data;
+  bool _isLoading = true;
   bool _isVisible = false;
   bool _isProcessing = false;
   String? keyId;
@@ -21,11 +22,11 @@ class _DataLogPageState extends State<DataLogPage> {
         setState(() {
           data = snapshot.value as Map<dynamic, dynamic>;
         });
-      } else {
-        print('No data available.');
       }
-    } catch (e) {
-      print('Error reading data: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -79,7 +80,25 @@ class _DataLogPageState extends State<DataLogPage> {
           children: [
             if (!_isVisible)
               data == null
-                  ? Center(child: CircularProgressIndicator())
+                  ? Stack(
+                      children: [
+                        _isLoading
+                            ? Container(
+                                child:
+                                    Center(child: CircularProgressIndicator()))
+                            : Container(
+                                child: Center(
+                                  child: Text(
+                                    "Not Attendance yet",
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ],
+                    )
                   : Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -108,11 +127,15 @@ class _DataLogPageState extends State<DataLogPage> {
                               borderRadius: BorderRadius.circular(16.0),
                               child: ListTile(
                                 title: Text(
-                                  'NIM: ${data![key]['nim']}',
+                                  data![key]['name'],
+                                  style: TextStyle(
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 subtitle: Text(
-                                  'Nama: ${data![key]['name']}',
+                                  data![key]['timestamp'],
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 trailing: Icon(Icons.arrow_forward_ios),
@@ -306,11 +329,115 @@ class _DataLogPageState extends State<DataLogPage> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    data![keyId]['timestamp'],
-                                    style: TextStyle(
-                                      fontSize: 16.0,
-                                      fontWeight: FontWeight.bold,
+                                  Flexible(
+                                    child: Text(
+                                      data![keyId]['lesson'],
+                                      style: TextStyle(
+                                        fontSize: 16.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 16,
+                              left: 16,
+                              child: Text(
+                                "Mata Kuliah",
+                                style: TextStyle(
+                                  fontSize: 12.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Stack(
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.only(
+                                top: 30.0,
+                                bottom: 16.0,
+                                left: 16.0,
+                                right: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.grey),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.5),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      data![keyId]['attendance'],
+                                      style: TextStyle(
+                                        fontSize: 16.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 16,
+                              left: 16,
+                              child: Text(
+                                "Keterangan",
+                                style: TextStyle(
+                                  fontSize: 12.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Stack(
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.only(
+                                top: 30.0,
+                                bottom: 16.0,
+                                left: 16.0,
+                                right: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.grey),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.5),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      data![keyId]['timestamp'],
+                                      style: TextStyle(
+                                        fontSize: 16.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
