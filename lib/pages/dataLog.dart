@@ -88,96 +88,76 @@ class _DataLogPageState extends State<DataLogPage> {
             ),
           ),
           actions: [
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              child: IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                onPressed: () {
-                  setState(() {
-                    _fetchData();
-                  });
-                },
+            if (!_isVisible)
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      _fetchData();
+                    });
+                  },
+                ),
               ),
-            ),
           ],
         ),
         body: Stack(
           children: [
-            if (!_isVisible)
-              data == null
-                  ? Stack(
-                      children: [
-                        _isLoading
-                            ? Container(
-                                color: Colors.black45,
-                                child:
-                                    Center(child: CircularProgressIndicator()))
-                            : Container(
-                                child: Center(
-                                  child: Text(
-                                    "Not Attendance yet",
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                      ],
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.green,
-                            Colors.lightGreenAccent,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+            if (!_isVisible && data != null)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.green,
+                      Colors.lightGreenAccent,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  itemCount: data!.length,
+                  itemBuilder: (context, index) {
+                    final key = data!.keys.elementAt(index);
+                    return Container(
+                      margin: EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 8.0,
+                      ),
+                      child: Material(
+                        color: Colors.green.shade100,
+                        elevation: 4.0,
+                        clipBehavior: Clip.hardEdge,
+                        borderRadius: BorderRadius.circular(16.0),
+                        child: ListTile(
+                          title: Text(
+                            data![key]['name'],
+                            style: TextStyle(
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            data![key]['timestamp'],
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Icon(Icons.arrow_forward_ios),
+                          onTap: () {
+                            setState(() {
+                              _isVisible = true;
+                              _isProcessing = true;
+                              keyId = key;
+                            });
+                          },
                         ),
                       ),
-                      child: ListView.builder(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        itemCount: data!.length,
-                        itemBuilder: (context, index) {
-                          final key = data!.keys.elementAt(index);
-                          return Container(
-                            margin: EdgeInsets.symmetric(
-                              horizontal: 20.0,
-                              vertical: 8.0,
-                            ),
-                            child: Material(
-                              color: Colors.green.shade100,
-                              elevation: 4.0,
-                              clipBehavior: Clip.hardEdge,
-                              borderRadius: BorderRadius.circular(16.0),
-                              child: ListTile(
-                                title: Text(
-                                  data![key]['name'],
-                                  style: TextStyle(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  data![key]['timestamp'],
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: Icon(Icons.arrow_forward_ios),
-                                onTap: () {
-                                  setState(() {
-                                    _isVisible = true;
-                                    _isProcessing = true;
-                                    keyId = key;
-                                  });
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                    );
+                  },
+                ),
+              ),
             if (_isVisible && keyId != null)
               ListView(
                 children: [
@@ -527,6 +507,26 @@ class _DataLogPageState extends State<DataLogPage> {
                   ),
                 ],
               ),
+            if (_isLoading)
+              Container(
+                color: Colors.black45,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (data == null)
+              Container(
+                color: Colors.white,
+                child: Center(
+                  child: Text(
+                    "Not Attendance yet",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              )
           ],
         ),
       ),
