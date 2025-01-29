@@ -216,24 +216,6 @@ class _RecordPageState extends State<RecordPage> {
     );
   }
 
-  Future<List<Map>> fetchData() async {
-    final snapshot = await _dbRef.get();
-    if (snapshot.exists) {
-      final data = snapshot.value as Map;
-      return data.entries.map(
-        (e) {
-          final key = e.key;
-          final value = e.value as Map;
-          return {
-            "id": key,
-            ...value,
-          };
-        },
-      ).toList();
-    }
-    return [];
-  }
-
   static Future<String> uploadImage(File imageFile) async {
     final url = Uri.parse('https://api.imgur.com/3/image');
     final request = http.MultipartRequest('POST', url)

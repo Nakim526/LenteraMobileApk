@@ -23,7 +23,7 @@ class _NotesPageState extends State<NotesPage> {
   bool _isAdding = false;
   bool _isRenaming = false;
   bool _isLoading = false;
-  bool _isSaved = false;
+  bool _isSaved = true;
   bool _isDelete = false;
   String? keyId;
 
@@ -35,7 +35,7 @@ class _NotesPageState extends State<NotesPage> {
 
   Future<void> _getCurrentData() async {
     setState(() {
-      _titleController.text = _data![keyId]['title'] ?? '';
+      _titleController.text = _data![keyId]['title'];
       _subtitleController.text = _data![keyId]['subtitle'] ?? '';
       _fillController.text = _data![keyId]['fill'] ?? '';
     });
@@ -84,11 +84,12 @@ class _NotesPageState extends State<NotesPage> {
       await userRef.push().set({
         'title': _titleController.text.trim(),
         'subtitle': _subtitleController.text.trim().toString(),
-        'fill': '',
+        'fill': _fillController.text.trim().toString(),
         "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
       });
 
       setState(() {
+        _isSaved = true;
         _refreshData();
       });
     }
@@ -232,8 +233,8 @@ class _NotesPageState extends State<NotesPage> {
               _fillController.text != _data![keyId]['fill']) {
             setState(() {
               _isSaved = false;
+              _showDialog();
             });
-            await _showDialog();
           } else {
             setState(() {
               _isOpen = false;
@@ -282,6 +283,7 @@ class _NotesPageState extends State<NotesPage> {
                         _isAdding = true;
                         _titleController.clear();
                         _subtitleController.clear();
+                        _fillController.clear();
                       });
                     },
                   ),
@@ -444,29 +446,25 @@ class _NotesPageState extends State<NotesPage> {
                     );
                   },
                 ),
+              ),
+            if (_isLoading)
+              Container(
+                color: Colors.black45,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
               )
             else if (_data == null)
-              Stack(
-                children: [
-                  _isLoading
-                      ? Container(
-                          color: Colors.black45,
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      : Container(
-                          child: Center(
-                            child: Text(
-                              "Not notes yet",
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        )
-                ],
+              Container(
+                child: Center(
+                  child: Text(
+                    "Not notes yet",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             if (_isAdding || _isRenaming)
               Container(

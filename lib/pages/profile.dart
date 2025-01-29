@@ -130,8 +130,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ),
-        body: Center(
-          child: CircularProgressIndicator(),
+        body: Container(
+          color: Colors.black45,
+          child: Center(
+            child: CircularProgressIndicator(),
+          ),
         ),
       );
     }
