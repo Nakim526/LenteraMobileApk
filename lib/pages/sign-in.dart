@@ -6,6 +6,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInPage extends StatefulWidget {
+  const SignInPage({super.key});
+
   @override
   _SignInPageState createState() => _SignInPageState();
 }
@@ -319,7 +321,7 @@ class _SignInPageState extends State<SignInPage> {
                                 ],
                               ),
                               SizedBox(height: 16),
-                              Container(
+                              SizedBox(
                                 width: MediaQuery.of(context).size.width,
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,

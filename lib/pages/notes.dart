@@ -103,7 +103,7 @@ class _NotesPageState extends State<NotesPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/${keyId}');
+      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
 
       await userRef.update({
         'title': _titleController.text.trim(),
@@ -120,7 +120,7 @@ class _NotesPageState extends State<NotesPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/${keyId}');
+      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
 
       await userRef.update({
         'title': _titleController.text.trim(),
@@ -140,7 +140,7 @@ class _NotesPageState extends State<NotesPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/${keyId}');
+      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
 
       await userRef.remove();
 

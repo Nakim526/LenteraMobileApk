@@ -4,6 +4,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DataLogPage extends StatefulWidget {
+  const DataLogPage({super.key});
+
   @override
   _DataLogPageState createState() => _DataLogPageState();
 }
@@ -166,7 +168,7 @@ class _DataLogPageState extends State<DataLogPage> {
                     child: Column(
                       children: [
                         if (_isProcessing)
-                          Container(
+                          SizedBox(
                             height: MediaQuery.of(context).size.height * 0.4,
                             child: Center(
                               child: CircularProgressIndicator(),

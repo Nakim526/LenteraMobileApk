@@ -255,7 +255,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Row(
                           children: [
-                            Container(
+                            SizedBox(
                               width: 75,
                               child: Text(
                                 "Nama",
@@ -289,7 +289,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Row(
                           children: [
-                            Container(
+                            SizedBox(
                               width: 75,
                               child: Text(
                                 "NIM",
@@ -323,7 +323,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Row(
                           children: [
-                            Container(
+                            SizedBox(
                               width: 75,
                               child: Text(
                                 "Alamat",
@@ -357,7 +357,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Row(
                           children: [
-                            Container(
+                            SizedBox(
                               width: 75,
                               child: Text(
                                 "Email",
@@ -461,7 +461,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
-                                color: Colors.blue,
+                                color: Colors.blue[900]!,
                                 width: 2,
                               ), // Warna saat fokus
                               borderRadius: BorderRadius.circular(14),
@@ -568,7 +568,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
-                                color: Colors.blue,
+                                color: Colors.blue[900]!,
                                 width: 2,
                               ), // Warna saat fokus
                               borderRadius: BorderRadius.circular(14),
@@ -675,7 +675,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
-                                color: Colors.blue,
+                                color: Colors.blue[900]!,
                                 width: 2,
                               ), // Warna saat fokus
                               borderRadius: BorderRadius.circular(14),

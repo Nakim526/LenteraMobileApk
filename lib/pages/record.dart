@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class RecordPage extends StatefulWidget {
+  const RecordPage({super.key});
+
   @override
   _RecordPageState createState() => _RecordPageState();
 }
@@ -168,10 +170,11 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   Future<void> _sendData() async {
-    if (_formKey.currentState!.validate())
+    if (_formKey.currentState!.validate()) {
       setState(() {
         _isSending = true;
       });
+    }
     if (_location != null) {
       final coordinates = _location!.split(', ');
       if (coordinates.length == 2) {
@@ -332,7 +335,7 @@ class _RecordPageState extends State<RecordPage> {
                     if (_photoPath == null)
                       if (_cameraController != null &&
                           _cameraController!.value.isInitialized)
-                        Container(
+                        SizedBox(
                           height: availableHeight,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -372,17 +375,17 @@ class _RecordPageState extends State<RecordPage> {
                                       EdgeInsets.all(16.0)),
                                   shadowColor:
                                       WidgetStatePropertyAll(Colors.black),
-                                  shape: MaterialStateProperty.all<
+                                  shape: WidgetStateProperty.all<
                                       RoundedRectangleBorder>(
                                     RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30.0),
                                     ),
                                   ),
                                   backgroundColor:
-                                      MaterialStateProperty.all<Color>(
+                                      WidgetStateProperty.all<Color>(
                                           Colors.white),
                                   elevation:
-                                      MaterialStateProperty.all<double>(2.0),
+                                      WidgetStateProperty.all<double>(2.0),
                                 ),
                                 icon: Icon(Icons.camera_alt),
                               ),
@@ -429,7 +432,7 @@ class _RecordPageState extends State<RecordPage> {
                                   style: ButtonStyle(
                                     padding: WidgetStatePropertyAll(
                                         EdgeInsets.all(8.0)),
-                                    shape: MaterialStateProperty.all<
+                                    shape: WidgetStateProperty.all<
                                         RoundedRectangleBorder>(
                                       RoundedRectangleBorder(
                                         borderRadius:

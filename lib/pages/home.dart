@@ -61,7 +61,7 @@ class HomePage extends StatelessWidget {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              Container(
+              SizedBox(
                 height: 125,
                 child: DrawerHeader(
                   decoration: BoxDecoration(
