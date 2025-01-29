@@ -260,12 +260,26 @@ class _NotesPageState extends State<NotesPage> {
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () {
-                if (_isAdding || _isRenaming || _isOpen) {
+                if (_isAdding || _isRenaming) {
                   setState(() {
                     _isAdding = false;
                     _isRenaming = false;
                     _isOpen = false;
                   });
+                } else if (_isOpen) {
+                  if (_titleController.text != _data![keyId]['title'] ||
+                      _subtitleController.text != _data![keyId]['subtitle'] ||
+                      _fillController.text != _data![keyId]['fill']) {
+                    setState(() {
+                      _isSaved = false;
+                      _showDialog();
+                    });
+                  } else {
+                    setState(() {
+                      _isOpen = false;
+                      _isEditing = false;
+                    });
+                  }
                 } else {
                   Navigator.pop(context);
                 }
