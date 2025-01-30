@@ -54,10 +54,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDHt69g6LmhOa9u7_G_Bwk8kkDhNRILbXQ',
-    appId: '1:98574851766:android:c78a63c61d78f6fad79017',
+    appId: '1:98574851766:android:d8cd6628e4569458d79017',
     messagingSenderId: '98574851766',
     projectId: 'presented-art',
+    databaseURL: 'https://presented-art-default-rtdb.firebaseio.com',
     storageBucket: 'presented-art.firebasestorage.app',
   );
-
 }

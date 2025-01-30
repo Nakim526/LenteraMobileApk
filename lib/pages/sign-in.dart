@@ -96,7 +96,7 @@ class _SignInPageState extends State<SignInPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text('Error'),
-            content: Text(errorMessage),
+            content: Text('$errorMessage : $e'),
             actions: [
               TextButton(
                 child: Text('OK'),
@@ -111,7 +111,7 @@ class _SignInPageState extends State<SignInPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text('Error'),
-            content: Text('Login gagal. Silakan coba lagi.'),
+            content: Text('$e'),
             actions: [
               TextButton(
                 child: Text('OK'),
@@ -165,7 +165,7 @@ class _SignInPageState extends State<SignInPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Error'),
-          content: Text('Login gagal. Silakan coba lagi.'),
+          content: Text('$e'),
           actions: [
             TextButton(
               child: Text('OK'),

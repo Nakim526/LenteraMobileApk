@@ -12,25 +12,30 @@ class NotesPage extends StatefulWidget {
 
 class _NotesPageState extends State<NotesPage> {
   final GlobalKey<FormFieldState> fieldKey = GlobalKey<FormFieldState>();
-  final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('users');
   final _titleController = TextEditingController();
   final _subtitleController = TextEditingController();
   final _fillController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   Map<dynamic, dynamic>? _data;
+  List<String> _selectedItems = [];
+  List<String> _uidList = [];
+  String? keyId;
+  String? _sort;
   bool _isOpen = false;
+  bool _isSelect = false;
   bool _isEditing = false;
   bool _isAdding = false;
   bool _isRenaming = false;
   bool _isLoading = false;
   bool _isSaved = true;
   bool _isDelete = false;
-  String? keyId;
 
   @override
   void initState() {
     super.initState();
-    _refreshData();
+    _sort = 'asc';
+    _refresh();
   }
 
   Future<void> _getCurrentData() async {
@@ -41,7 +46,7 @@ class _NotesPageState extends State<NotesPage> {
     });
   }
 
-  Future<void> _refreshData() async {
+  Future<void> _refresh() async {
     setState(() {
       _isLoading = true;
     });
@@ -49,19 +54,70 @@ class _NotesPageState extends State<NotesPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final snapshot = await _databaseRef
-            .child('users')
-            .child(user.uid)
-            .child('notes')
-            .get();
-        if (snapshot.exists) {
-          setState(() {
-            _data = snapshot.value as Map<dynamic, dynamic>;
-          });
-        } else {
-          setState(() {
-            _data = null;
-          });
+        if (_sort == 'asc' || _sort == 'desc') {
+          final snapshot = await _dbRef
+              .child('${user.uid}/notes')
+              .orderByChild('title')
+              .get();
+          if (snapshot.exists) {
+            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+
+            List<MapEntry<String, dynamic>> sortedList =
+                rawData.entries.toList();
+
+            sortedList.sort((a, b) {
+              return a.value['title']
+                  .toString()
+                  .compareTo(b.value['title'].toString());
+            });
+
+            if (_sort == 'desc') {
+              sortedList = sortedList.reversed.toList();
+            }
+
+            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+            setState(() {
+              _data = sortedData;
+            });
+
+            setState(() {
+              _uidList = _data!.keys.cast<String>().toList();
+            });
+          } else {
+            setState(() {
+              _data = null;
+            });
+          }
+        } else if (_sort == 'baru' || _sort == 'lama') {
+          final snapshot = await _dbRef
+              .child('${user.uid}/notes')
+              .orderByChild('timestamp')
+              .get();
+          if (snapshot.exists) {
+            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+
+            List<MapEntry<String, dynamic>> sortedList =
+                rawData.entries.toList();
+
+            sortedList.sort((a, b) {
+              return a.value['timestamp'].compareTo(b.value['timestamp']);
+            });
+
+            if (_sort == 'baru') {
+              sortedList = sortedList.reversed.toList();
+            }
+
+            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+            setState(() {
+              _data = sortedData;
+            });
+          } else {
+            setState(() {
+              _data = null;
+            });
+          }
         }
       }
     } finally {
@@ -71,6 +127,11 @@ class _NotesPageState extends State<NotesPage> {
     }
   }
 
+  String formatTimestamp(int timestamp) {
+    DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return DateFormat('dd MMM yyyy, HH:mm').format(date);
+  }
+
   Future<void> addNotes() async {
     setState(() {
       _isAdding = false;
@@ -78,19 +139,18 @@ class _NotesPageState extends State<NotesPage> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes');
+      final notesRef = _dbRef.child('${user.uid}/notes');
 
-      await userRef.push().set({
+      await notesRef.push().set({
         'title': _titleController.text.trim(),
-        'subtitle': _subtitleController.text.trim().toString(),
-        'fill': _fillController.text.trim().toString(),
-        "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        'subtitle': _subtitleController.text.trim(),
+        'fill': _fillController.text.trim(),
+        "timestamp": ServerValue.timestamp,
       });
 
       setState(() {
         _isSaved = true;
-        _refreshData();
+        _refresh();
       });
     }
   }
@@ -102,16 +162,15 @@ class _NotesPageState extends State<NotesPage> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
+      final userRef = _dbRef.child('${user.uid}/notes/$keyId');
 
       await userRef.update({
         'title': _titleController.text.trim(),
-        'subtitle': _subtitleController.text.trim().toString(),
+        'subtitle': _subtitleController.text.trim(),
       });
 
       setState(() {
-        _refreshData();
+        _refresh();
       });
     }
   }
@@ -119,19 +178,18 @@ class _NotesPageState extends State<NotesPage> {
   Future<void> saveNotes() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
+      final userRef = _dbRef.child('${user.uid}/notes/$keyId');
 
       await userRef.update({
         'title': _titleController.text.trim(),
-        'subtitle': _subtitleController.text.trim().toString(),
-        'fill': _fillController.text.trim().toString(),
-        "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        'subtitle': _subtitleController.text.trim(),
+        'fill': _fillController.text.trim(),
+        "timestamp": ServerValue.timestamp,
       });
 
       setState(() {
         _isSaved = true;
-        _refreshData();
+        _refresh();
       });
     }
   }
@@ -145,7 +203,7 @@ class _NotesPageState extends State<NotesPage> {
       await userRef.remove();
 
       setState(() {
-        _refreshData();
+        _refresh();
       });
     }
   }
@@ -190,7 +248,11 @@ class _NotesPageState extends State<NotesPage> {
         barrierDismissible: false,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('Hapus Note'),
+            title: Text(
+              _selectedItems.isEmpty
+                  ? 'Hapus Note'
+                  : '${_selectedItems.length} item dipilih',
+            ),
             content: const Text('Anda yakin ingin menghapus note ini?'),
             actions: <Widget>[
               TextButton(
@@ -227,6 +289,12 @@ class _NotesPageState extends State<NotesPage> {
             _isRenaming = false;
           });
           return false;
+        } else if (_isSelect) {
+          setState(() {
+            _isSelect = false;
+            _selectedItems.clear();
+          });
+          return false;
         } else if (_isOpen) {
           if (_titleController.text != _data![keyId]['title'] ||
               _subtitleController.text != _data![keyId]['subtitle'] ||
@@ -248,7 +316,11 @@ class _NotesPageState extends State<NotesPage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            _isOpen ? _data![keyId]['title'] : "Notes",
+            _isOpen
+                ? _data![keyId]['title']
+                : _isSelect
+                    ? '${_selectedItems.length} dipilih'
+                    : 'Catatan',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -280,6 +352,10 @@ class _NotesPageState extends State<NotesPage> {
                       _isEditing = false;
                     });
                   }
+                } else if (_isSelect) {
+                  setState(() {
+                    _isSelect = false;
+                  });
                 } else {
                   Navigator.pop(context);
                 }
@@ -288,33 +364,194 @@ class _NotesPageState extends State<NotesPage> {
           ),
           actions: [
             if (!_isOpen)
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    onPressed: () {
-                      setState(() {
-                        _isAdding = true;
-                        _titleController.clear();
-                        _subtitleController.clear();
-                        _fillController.clear();
-                      });
-                    },
-                  ),
-                  Container(
-                    margin: EdgeInsets.only(right: 16),
-                    child: IconButton(
-                      icon: Icon(Icons.refresh, color: Colors.white),
-                      onPressed: () {
-                        setState(() {
-                          _refreshData();
-                          _isLoading = true;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
+              Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  child: !_isSelect
+                      ? Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.add, color: Colors.white),
+                              onPressed: () {
+                                setState(() {
+                                  _isAdding = true;
+                                  _titleController.clear();
+                                  _subtitleController.clear();
+                                  _fillController.clear();
+                                });
+                              },
+                            ),
+                            PopupMenuButton(
+                              icon: const Icon(Icons.more_vert,
+                                  color: Colors.white),
+                              onSelected: (value) {
+                                if (value == 'pilih') {
+                                  setState(() {
+                                    _isSelect = true;
+                                    _selectedItems = [];
+                                  });
+                                } else if (value == 'refresh') {
+                                  setState(() {
+                                    _refresh();
+                                  });
+                                } else if (value == 'asc') {
+                                  setState(() {
+                                    _sort = 'asc';
+                                    _refresh();
+                                  });
+                                } else if (value == 'desc') {
+                                  setState(() {
+                                    _sort = 'desc';
+                                    _refresh();
+                                  });
+                                } else if (value == 'terbaru') {
+                                  setState(() {
+                                    _sort = 'baru';
+                                    _refresh();
+                                  });
+                                } else if (value == 'terlama') {
+                                  setState(() {
+                                    _sort = 'lama';
+                                    _refresh();
+                                  });
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'pilih',
+                                  child: Text("Pilih"),
+                                ),
+                                PopupMenuItem(
+                                  value: 'refresh',
+                                  child: Text("Refresh"),
+                                ),
+                                PopupMenuItem(
+                                  padding: EdgeInsets.all(0),
+                                  value: 'asc',
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    color: _sort == 'asc'
+                                        ? Colors.grey.shade300
+                                        : Colors.transparent,
+                                    child: Row(
+                                      children: [
+                                        Text("Urutkan A-Z"),
+                                        Spacer(),
+                                        if (_sort == 'asc')
+                                          Icon(
+                                            Icons.done,
+                                            color: Colors.grey.shade600,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  padding: EdgeInsets.all(0),
+                                  value: 'desc',
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    color: _sort == 'desc'
+                                        ? Colors.grey.shade300
+                                        : Colors.transparent,
+                                    child: Row(
+                                      children: [
+                                        Text("Urutkan Z-A"),
+                                        Spacer(),
+                                        if (_sort == 'desc')
+                                          Icon(
+                                            Icons.done,
+                                            color: Colors.grey.shade600,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  padding: EdgeInsets.all(0),
+                                  value: 'terbaru',
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    color: _sort == 'baru'
+                                        ? Colors.grey.shade300
+                                        : Colors.transparent,
+                                    child: Row(
+                                      children: [
+                                        Text("Urutkan Terbaru"),
+                                        Spacer(),
+                                        if (_sort == 'baru')
+                                          Icon(
+                                            Icons.done,
+                                            color: Colors.grey.shade600,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  padding: EdgeInsets.all(0),
+                                  value: 'terlama',
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    color: _sort == 'lama'
+                                        ? Colors.grey.shade300
+                                        : Colors.transparent,
+                                    child: Row(
+                                      children: [
+                                        Text("Urutkan Terlama"),
+                                        Spacer(),
+                                        if (_sort == 'lama')
+                                          Icon(
+                                            Icons.done,
+                                            color: Colors.grey.shade600,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            IconButton(
+                              icon:
+                                  const Icon(Icons.delete, color: Colors.white),
+                              onPressed: () {
+                                if (_selectedItems.isEmpty) {
+                                  return;
+                                }
+                                setState(() {
+                                  _isDelete = true;
+                                  _showDialog();
+                                });
+                              },
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  if (_selectedItems.length !=
+                                      _uidList.length) {
+                                    _selectedItems.clear();
+                                    _selectedItems.addAll(_uidList);
+                                  } else {
+                                    _selectedItems.clear();
+                                  }
+                                });
+                              },
+                              icon: Icon(
+                                _selectedItems.length == _uidList.length
+                                    ? Icons.check_box
+                                    : Icons.check_box_outline_blank,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        )),
             if (_isOpen)
               Row(
                 children: [
@@ -326,17 +563,14 @@ class _NotesPageState extends State<NotesPage> {
                       });
                     },
                   ),
-                  Container(
-                    margin: EdgeInsets.only(right: 16),
-                    child: IconButton(
-                      icon: const Icon(Icons.exit_to_app, color: Colors.white),
-                      onPressed: () {
-                        setState(() {
-                          saveNotes();
-                          _isOpen = false;
-                        });
-                      },
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.exit_to_app, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        saveNotes();
+                        _isOpen = false;
+                      });
+                    },
                   ),
                 ],
               ),
@@ -391,7 +625,9 @@ class _NotesPageState extends State<NotesPage> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   Text(
-                                    _data![key]['timestamp'],
+                                    formatTimestamp(
+                                      _data![key]['timestamp'],
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
@@ -400,59 +636,90 @@ class _NotesPageState extends State<NotesPage> {
                                 left: 16.0,
                                 right: 8.0,
                               ),
-                              onTap: () {
+                              onLongPress: () {
                                 setState(() {
-                                  keyId = key;
-                                  _isOpen = true;
-                                  _isEditing = false;
-                                  _getCurrentData();
+                                  _isSelect = true;
+                                  _selectedItems.clear();
+                                  _selectedItems.add(key);
                                 });
                               },
-                              trailing: PopupMenuButton<int>(
-                                icon: Icon(Icons.more_vert),
-                                onSelected: (value) {
-                                  // Tindakan ketika item dipilih
-                                  if (value == 1) {
-                                    setState(() {
-                                      keyId = key;
-                                      _isOpen = true;
-                                      _isEditing = true;
-                                      _getCurrentData();
-                                    });
-                                  } else if (value == 2) {
-                                    setState(() {
-                                      keyId = key;
-                                      _isRenaming = true;
-                                      _titleController.text =
-                                          _data![key]['title'];
-                                      _subtitleController.text =
-                                          _data![key]['subtitle'];
-                                      _fillController.text =
-                                          _data![key]['fill'];
-                                    });
-                                  } else if (value == 3) {
-                                    setState(() {
-                                      keyId = key;
-                                      _isDelete = true;
-                                      _showDialog();
-                                    });
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    value: 1,
-                                    child: Text("Edit"),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 2,
-                                    child: Text("Rename"),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 3,
-                                    child: Text("Delete"),
-                                  ),
-                                ],
-                              ),
+                              onTap: () {
+                                if (_isSelect) {
+                                  setState(() {
+                                    if (_selectedItems.contains(key)) {
+                                      _selectedItems.remove(key);
+                                    } else {
+                                      _selectedItems.add(key);
+                                    }
+                                  });
+                                } else {
+                                  setState(() {
+                                    keyId = key;
+                                    _isOpen = true;
+                                    _isEditing = false;
+                                    _getCurrentData();
+                                  });
+                                }
+                              },
+                              trailing: _isSelect
+                                  ? Checkbox(
+                                      shape: CircleBorder(),
+                                      value: _selectedItems.contains(key),
+                                      onChanged: (bool? selected) {
+                                        setState(() {
+                                          if (selected == true) {
+                                            _selectedItems.add(key);
+                                          } else {
+                                            _selectedItems.remove(key);
+                                          }
+                                        });
+                                      },
+                                    )
+                                  : PopupMenuButton<int>(
+                                      icon: Icon(Icons.more_vert),
+                                      onSelected: (value) {
+                                        // Tindakan ketika item dipilih
+                                        if (value == 1) {
+                                          setState(() {
+                                            keyId = key;
+                                            _isOpen = true;
+                                            _isEditing = true;
+                                            _getCurrentData();
+                                          });
+                                        } else if (value == 2) {
+                                          setState(() {
+                                            keyId = key;
+                                            _isRenaming = true;
+                                            _titleController.text =
+                                                _data![key]['title'];
+                                            _subtitleController.text =
+                                                _data![key]['subtitle'];
+                                            _fillController.text =
+                                                _data![key]['fill'];
+                                          });
+                                        } else if (value == 3) {
+                                          setState(() {
+                                            keyId = key;
+                                            _isDelete = true;
+                                            _showDialog();
+                                          });
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        PopupMenuItem(
+                                          value: 1,
+                                          child: Text("Edit"),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 2,
+                                          child: Text("Rename"),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 3,
+                                          child: Text("Delete"),
+                                        ),
+                                      ],
+                                    ),
                             ),
                           ],
                         ),

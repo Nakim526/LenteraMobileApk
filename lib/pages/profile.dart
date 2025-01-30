@@ -457,34 +457,34 @@ class _ProfilePageState extends State<ProfilePage> {
                               borderSide: BorderSide(
                                 color: Colors.grey,
                               ), // Warna saat tidak fokus
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.blue[900]!,
                                 width: 2,
                               ), // Warna saat fokus
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red,
                                 width: 1,
                               ), // Warna saat error
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             disabledBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.black12,
                               ), // Warna saat disabled
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             focusedErrorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red[900]!,
                                 width: 2,
                               ), // Warna saat error dan fokus
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             errorStyle: TextStyle(
                               height: 0, // Menyembunyikan error text bawaan

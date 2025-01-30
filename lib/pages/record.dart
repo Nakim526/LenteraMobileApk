@@ -6,7 +6,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as Img;
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_database/firebase_database.dart';
 
@@ -24,7 +23,7 @@ class _RecordPageState extends State<RecordPage> {
   final _formKey = GlobalKey<FormState>();
   static const String clientId = "ca88e99d5b919db";
   CameraController? _cameraController;
-  String? _selectedValue;
+  String? _attendance;
   String? _lesson;
   String? _location;
   String? _photoPath;
@@ -88,11 +87,7 @@ class _RecordPageState extends State<RecordPage> {
     super.dispose();
   }
 
-  Future<void> _captureLocationAndPhoto() async {
-    setState(() {
-      _isProcessing = true;
-    });
-
+  Future<String> _getLocation() async {
     try {
       await _checkAndRequestLocationPermission();
 
@@ -100,6 +95,24 @@ class _RecordPageState extends State<RecordPage> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
+      setState(() {
+        _location =
+            'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
+      });
+    } catch (e) {
+      setState(() {
+        _location = 'Gagal mendapatkan lokasi: $e';
+      });
+    }
+    return _location!;
+  }
+
+  Future<void> _capturePhoto() async {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
       if (!_cameraController!.value.isInitialized) {
         throw 'Kamera belum siap.';
       }
@@ -115,13 +128,10 @@ class _RecordPageState extends State<RecordPage> {
       processedImageFile.writeAsBytesSync(Img.encodeJpg(mirroredImg));
 
       setState(() {
-        _location =
-            'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
         _photoPath = processedImagePath;
       });
     } catch (e) {
       setState(() {
-        _location = 'Gagal mengambil data: $e';
         _photoPath = null;
       });
     } finally {
@@ -174,33 +184,42 @@ class _RecordPageState extends State<RecordPage> {
       setState(() {
         _isSending = true;
       });
-    }
-    if (_location != null) {
-      final coordinates = _location!.split(', ');
-      if (coordinates.length == 2) {
-        final lat = coordinates[0].split(': ')[1];
-        final long = coordinates[1].split(': ')[1];
-        final mapsUrl = 'https://www.google.com/maps?q=$lat,$long';
 
-        if (await canLaunch(mapsUrl)) {
-          _location = mapsUrl;
-          setState(() {
-            _uploadData();
-          });
+      try {
+        _location = await _getLocation();
+
+        if (_location != null) {
+          final coordinates = _location!.split(', ');
+          if (coordinates.length == 2) {
+            final lat = coordinates[0].split(': ')[1];
+            final long = coordinates[1].split(': ')[1];
+            final mapsUrl = 'https://www.google.com/maps?q=$lat,$long';
+
+            if (await canLaunch(mapsUrl)) {
+              _location = mapsUrl;
+              setState(() {
+                _uploadData();
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Tidak dapat membuka peta.')),
+              );
+            }
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Format lokasi tidak valid.')),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Tidak dapat membuka peta.')),
+            SnackBar(content: Text('Lokasi tidak ditemukan.')),
           );
         }
-      } else {
+      } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Format lokasi tidak valid.')),
+          SnackBar(content: Text('Terjadi kesalahan: $e')),
         );
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Koordinat belum tersedia.')),
-      );
     }
   }
 
@@ -214,7 +233,7 @@ class _RecordPageState extends State<RecordPage> {
         "lesson": lesson,
         "location": location,
         "photoUrl": photoUrl,
-        "timestamp": DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        "timestamp": ServerValue.timestamp,
       },
     );
   }
@@ -240,43 +259,46 @@ class _RecordPageState extends State<RecordPage> {
   Future<void> _uploadData() async {
     if (_nameController.text.isNotEmpty && _nimController.text.isNotEmpty) {
       try {
-        // 1. Upload foto ke Imgur
         final photoUrl = await uploadImage(File(_photoPath!));
 
-        // 2. Simpan data ke Firebase
-        await saveData(
-          _nameController.text,
-          _nimController.text,
-          _selectedValue!,
-          _lesson!,
-          _location!,
-          photoUrl,
-        );
-
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text("Upload Berhasil"),
-              content: Text(
-                  "Data berhasil disimpan. Silahkan kembali ke halaman utama."),
-              actions: [
-                TextButton(
-                  child: Text("OK"),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-        Navigator.pushReplacementNamed(context, "/home");
+        if (_isSending) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text("Upload Berhasil"),
+                content: Text(
+                    "Data berhasil disimpan. Silahkan kembali ke halaman utama."),
+                actions: [
+                  TextButton(
+                    child: Text("OK"),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      saveData(
+                        _nameController.text,
+                        _nimController.text,
+                        _attendance!,
+                        _lesson!,
+                        _location!,
+                        photoUrl,
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+          Navigator.pushReplacementNamed(context, "/home");
+        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Failed to upload data: $e")),
         );
+      } finally {
+        setState(() {
+          _isSending = false;
+        });
       }
     }
   }
@@ -292,8 +314,29 @@ class _RecordPageState extends State<RecordPage> {
       onWillPop: () async {
         if (_isCaptured) {
           setState(() {
-            _isCaptured = false;
-            _photoPath = null;
+            if (_isSending) {
+              _isSending = false;
+              showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: Text("Upload Gagal"),
+                      content: Text("Upload dibatalkan. Data gagal disimpan."),
+                      actions: [
+                        TextButton(
+                          child: Text("OK"),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      ],
+                    );
+                  });
+            } else {
+              _isProcessing = false;
+              _photoPath = null;
+              _isCaptured = false;
+            }
           });
           return false; // Mencegah aplikasi keluar, hanya tutup tampilan detail.
         }
@@ -364,7 +407,7 @@ class _RecordPageState extends State<RecordPage> {
                               IconButton(
                                 iconSize: 30,
                                 onPressed: () {
-                                  _captureLocationAndPhoto();
+                                  _capturePhoto();
                                   _loadUserData();
                                   setState(() {
                                     _isCaptured = true;
@@ -509,7 +552,7 @@ class _RecordPageState extends State<RecordPage> {
                                             BorderRadius.circular(5.0),
                                       ),
                                     ),
-                                    value: _selectedValue, // Nilai awal
+                                    value: _attendance, // Nilai awal
                                     items: [
                                       DropdownMenuItem(
                                         value: "Hadir",
@@ -526,7 +569,7 @@ class _RecordPageState extends State<RecordPage> {
                                     ],
                                     onChanged: (value) {
                                       setState(() {
-                                        _selectedValue = value;
+                                        _attendance = value;
                                       });
                                     },
                                     validator: (value) {

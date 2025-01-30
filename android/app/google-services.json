@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "98574851766",
+    "firebase_url": "https://presented-art-default-rtdb.firebaseio.com",
     "project_id": "presented-art",
     "storage_bucket": "presented-art.firebasestorage.app"
   },
@@ -9,7 +10,44 @@
       "client_info": {
         "mobilesdk_app_id": "1:98574851766:android:c78a63c61d78f6fad79017",
         "android_client_info": {
-          "package_name": "com.example.login"
+          "package_name": "com.presentasi.karya"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "98574851766-ihgbsvvn0ng5e9qkt6ibim4kejpeqeo4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.presentasi.karya",
+            "certificate_hash": "105e56fd5cdf14da742b3432e62516008a132eb3"
+          }
+        },
+        {
+          "client_id": "98574851766-dfi3s089qp2ktj31gp8ccu3bec902cfn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHt69g6LmhOa9u7_G_Bwk8kkDhNRILbXQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "98574851766-dfi3s089qp2ktj31gp8ccu3bec902cfn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:98574851766:android:d8cd6628e4569458d79017",
+        "android_client_info": {
+          "package_name": "com.presentasi.karya"
         }
       },
       "oauth_client": [

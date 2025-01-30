@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DataLogPage extends StatefulWidget {
@@ -11,14 +12,18 @@ class DataLogPage extends StatefulWidget {
 }
 
 class _DataLogPageState extends State<DataLogPage> {
-  final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
-  Map<dynamic, dynamic>? data;
-  bool _isLoading = false;
-  bool _isVisible = false;
-  bool _isProcessing = false;
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
+  List<String> _selectedItems = [];
+  List<String> _uidList = [];
+  Map<dynamic, dynamic>? _data;
+  String? _sort;
   String? keyId;
+  bool _isSelect = false;
+  bool _isLoading = false;
+  bool _isOpen = false;
+  bool _isProcessing = false;
 
-  Future<void> _fetchData() async {
+  Future<void> _refresh() async {
     setState(() {
       _isLoading = true;
     });
@@ -26,16 +31,71 @@ class _DataLogPageState extends State<DataLogPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final snapshot = await _databaseRef.child('uploads').get();
-        if (snapshot.exists) {
-          setState(() {
-            data = snapshot.value as Map<dynamic, dynamic>;
-          });
-        } else {
-          setState(() {
-            data = null;
-          });
+        if (_sort == 'asc' || _sort == 'desc') {
+          final snapshot = await _dbRef.orderByChild('name').get();
+          if (snapshot.exists) {
+            // Konversi snapshot menjadi Map<String, dynamic>
+            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+
+            // Ubah Map menjadi List untuk sorting
+            List<MapEntry<String, dynamic>> sortedList =
+                rawData.entries.toList();
+
+            // Urutkan data berdasarkan "name"
+            sortedList.sort((a, b) {
+              return a.value['name']
+                  .toString()
+                  .compareTo(b.value['name'].toString());
+            });
+
+            // Jika DESC, balikkan urutannya
+            if (_sort == 'desc') {
+              sortedList = sortedList.reversed.toList();
+            }
+
+            // Ubah kembali menjadi Map
+            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+            setState(() {
+              _data = sortedData;
+            });
+
+            setState(() {
+              _uidList = _data!.keys.cast<String>().toList();
+            });
+          }
+        } else if (_sort == 'baru' || _sort == 'lama') {
+          final snapshot = await _dbRef.orderByChild('timestamp').get();
+          if (snapshot.exists) {
+            // Konversi snapshot menjadi Map<String, dynamic>
+            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+
+            // Ubah Map menjadi List untuk sorting
+            List<MapEntry<String, dynamic>> sortedList =
+                rawData.entries.toList();
+
+            // Urutkan data berdasarkan "timestamp"
+            sortedList.sort((a, b) {
+              return a.value['timestamp'].compareTo(b.value['timestamp']);
+            });
+
+            // Jika DESC, balikkan urutannya
+            if (_sort == 'baru') {
+              sortedList = sortedList.reversed.toList();
+            }
+
+            // Ubah kembali menjadi Map
+            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+            setState(() {
+              _data = sortedData;
+            });
+          }
         }
+      } else {
+        setState(() {
+          _data = null;
+        });
       }
     } finally {
       setState(() {
@@ -47,19 +107,88 @@ class _DataLogPageState extends State<DataLogPage> {
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _sort = 'asc';
+    _refresh();
+  }
+
+  String formatTimestamp(int timestamp) {
+    DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return DateFormat('dd MMM yyyy, HH:mm').format(date);
+  }
+
+  Future<void> deleteData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    String? uid = keyId;
+    try {
+      if (user != null) {
+        if (_selectedItems.isEmpty) {
+          return;
+        } else {
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text(
+                  uid != null
+                      ? 'Hapus Riwayat'
+                      : '${_selectedItems.length} dipilih',
+                ),
+                content: Text('Anda yakin ingin menghapus riwayat ini?'),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Batal'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Hapus'),
+                    onPressed: () {
+                      if (uid != null) {
+                        _dbRef.child(keyId!).remove();
+                      } else {
+                        for (int i = 0; i < _selectedItems.length; i++) {
+                          uid = _selectedItems[i];
+                          _dbRef.child(uid!).remove();
+                        }
+                      }
+                      setState(() {
+                        _isOpen = false;
+                        _isSelect = false;
+                        _refresh();
+                      });
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Terjadi kesalahan saat menghapus note: $e'),
+      ));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        if (_isVisible) {
+        if (_isOpen) {
           setState(() {
-            _isVisible = false;
+            _isOpen = false;
             keyId = null;
           });
-          return false; // Mencegah aplikasi keluar, hanya tutup tampilan detail.
+          return false;
+        } else if (_isSelect) {
+          setState(() {
+            _isSelect = false;
+          });
+          return false;
         }
         return true;
       },
@@ -67,7 +196,9 @@ class _DataLogPageState extends State<DataLogPage> {
         appBar: AppBar(
           backgroundColor: Colors.green[900],
           title: Text(
-            'Riwayat',
+            _isSelect
+                ? '${_selectedItems.length.toString()} dipilih'
+                : 'Riwayat',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -78,10 +209,14 @@ class _DataLogPageState extends State<DataLogPage> {
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () {
-                if (_isVisible) {
+                if (_isOpen) {
                   setState(() {
-                    _isVisible = false;
+                    _isOpen = false;
                     keyId = null;
+                  });
+                } else if (_isSelect) {
+                  setState(() {
+                    _isSelect = false;
                   });
                 } else {
                   Navigator.pop(context);
@@ -90,14 +225,185 @@ class _DataLogPageState extends State<DataLogPage> {
             ),
           ),
           actions: [
-            if (!_isVisible)
+            if (!_isOpen)
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: !_isSelect
+                    ? PopupMenuButton(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        onSelected: (value) {
+                          if (value == 'pilih') {
+                            setState(() {
+                              _isSelect = true;
+                              _selectedItems = [];
+                            });
+                          } else if (value == 'refresh') {
+                            setState(() {
+                              _refresh();
+                            });
+                          } else if (value == 'asc') {
+                            setState(() {
+                              _sort = 'asc';
+                              _refresh();
+                            });
+                          } else if (value == 'desc') {
+                            setState(() {
+                              _sort = 'desc';
+                              _refresh();
+                            });
+                          } else if (value == 'terbaru') {
+                            setState(() {
+                              _sort = 'baru';
+                              _refresh();
+                            });
+                          } else if (value == 'terlama') {
+                            setState(() {
+                              _sort = 'lama';
+                              _refresh();
+                            });
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'pilih',
+                            child: Text("Pilih"),
+                          ),
+                          PopupMenuItem(
+                            value: 'refresh',
+                            child: Text("Refresh"),
+                          ),
+                          PopupMenuItem(
+                            padding: EdgeInsets.all(0),
+                            value: 'asc',
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              color: _sort == 'asc'
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  Text("Urutkan A-Z"),
+                                  Spacer(),
+                                  if (_sort == 'asc')
+                                    Icon(
+                                      Icons.done,
+                                      color: Colors.grey.shade600,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            padding: EdgeInsets.all(0),
+                            value: 'desc',
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              color: _sort == 'desc'
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  Text("Urutkan Z-A"),
+                                  Spacer(),
+                                  if (_sort == 'desc')
+                                    Icon(
+                                      Icons.done,
+                                      color: Colors.grey.shade600,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            padding: EdgeInsets.all(0),
+                            value: 'terbaru',
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              color: _sort == 'baru'
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  Text("Urutkan Terbaru"),
+                                  Spacer(),
+                                  if (_sort == 'baru')
+                                    Icon(
+                                      Icons.done,
+                                      color: Colors.grey.shade600,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            padding: EdgeInsets.all(0),
+                            value: 'terlama',
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              color: _sort == 'lama'
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  Text("Urutkan Terlama"),
+                                  Spacer(),
+                                  if (_sort == 'lama')
+                                    Icon(
+                                      Icons.done,
+                                      color: Colors.grey.shade600,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                deleteData();
+                              });
+                            },
+                            icon: Icon(
+                              Icons.delete,
+                              color: Colors.white,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                if (_selectedItems.length != _uidList.length) {
+                                  _selectedItems.clear();
+                                  _selectedItems.addAll(_uidList);
+                                } else {
+                                  _selectedItems.clear();
+                                }
+                              });
+                            },
+                            icon: Icon(
+                              _selectedItems.length == _uidList.length
+                                  ? Icons.check_box
+                                  : Icons.check_box_outline_blank,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+              )
+            else
               Container(
                 margin: const EdgeInsets.only(right: 16),
                 child: IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  icon: const Icon(Icons.delete, color: Colors.white),
                   onPressed: () {
                     setState(() {
-                      _fetchData();
+                      deleteData();
                     });
                   },
                 ),
@@ -106,7 +412,7 @@ class _DataLogPageState extends State<DataLogPage> {
         ),
         body: Stack(
           children: [
-            if (!_isVisible && data != null)
+            if (!_isOpen && _data != null)
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -120,9 +426,9 @@ class _DataLogPageState extends State<DataLogPage> {
                 ),
                 child: ListView.builder(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
-                  itemCount: data!.length,
+                  itemCount: _data!.length,
                   itemBuilder: (context, index) {
-                    final key = data!.keys.elementAt(index);
+                    final key = _data!.keys.elementAt(index);
                     return Container(
                       margin: EdgeInsets.symmetric(
                         horizontal: 20.0,
@@ -134,33 +440,74 @@ class _DataLogPageState extends State<DataLogPage> {
                         clipBehavior: Clip.hardEdge,
                         borderRadius: BorderRadius.circular(16.0),
                         child: ListTile(
-                          title: Text(
-                            data![key]['name'],
-                            style: TextStyle(
-                              fontSize: 16.0,
-                              fontWeight: FontWeight.bold,
+                            title: Text(
+                              _data![key]['name'],
+                              style: TextStyle(
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            data![key]['timestamp'],
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Icon(Icons.arrow_forward_ios),
-                          onTap: () {
-                            setState(() {
-                              _isVisible = true;
-                              _isProcessing = true;
-                              keyId = key;
-                            });
-                          },
-                        ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _data![key]['lesson'],
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  formatTimestamp(
+                                    _data![key]['timestamp'],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                            onLongPress: () {
+                              setState(() {
+                                _isSelect = true;
+                                _selectedItems.clear();
+                                _selectedItems.add(key);
+                              });
+                            },
+                            onTap: () {
+                              if (_isSelect) {
+                                setState(() {
+                                  if (_selectedItems.contains(key)) {
+                                    _selectedItems.remove(key);
+                                  } else {
+                                    _selectedItems.add(key);
+                                  }
+                                });
+                              } else {
+                                setState(() {
+                                  _isOpen = true;
+                                  _isProcessing = true;
+                                  keyId = key;
+                                });
+                              }
+                            },
+                            trailing: _isSelect
+                                ? Checkbox(
+                                    shape: CircleBorder(),
+                                    value: _selectedItems.contains(key),
+                                    onChanged: (bool? selected) {
+                                      setState(() {
+                                        if (selected == true) {
+                                          _selectedItems.add(key);
+                                        } else {
+                                          _selectedItems.remove(key);
+                                        }
+                                      });
+                                    },
+                                  )
+                                : Icon(Icons.arrow_forward_ios)),
                       ),
                     );
                   },
                 ),
               ),
-            if (_isVisible && keyId != null)
+            if (_isOpen && keyId != null)
               ListView(
                 children: [
                   Container(
@@ -178,7 +525,7 @@ class _DataLogPageState extends State<DataLogPage> {
                           height: MediaQuery.of(context).size.height * 0.4,
                           margin: EdgeInsets.only(bottom: 10.0),
                           child: Image.network(
-                            data![keyId]['photoUrl'],
+                            _data![keyId]['photoUrl'],
                             loadingBuilder: (context, child, loadingProgress) {
                               try {
                                 if (loadingProgress == null) {
@@ -237,7 +584,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      data![keyId]['name'],
+                                      _data![keyId]['name'],
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -288,7 +635,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      data![keyId]['nim'],
+                                      _data![keyId]['nim'],
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -339,7 +686,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      data![keyId]['lesson'],
+                                      _data![keyId]['lesson'],
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -390,7 +737,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      data![keyId]['attendance'],
+                                      _data![keyId]['attendance'],
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -441,7 +788,9 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      data![keyId]['timestamp'],
+                                      formatTimestamp(
+                                        _data![keyId]['timestamp'],
+                                      ),
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -468,7 +817,7 @@ class _DataLogPageState extends State<DataLogPage> {
                         ElevatedButton.icon(
                           onPressed: () {
                             if (keyId != null) {
-                              final locationUrl = data![keyId]['location'];
+                              final locationUrl = _data![keyId]['location'];
                               if (locationUrl != null &&
                                   locationUrl.isNotEmpty) {
                                 launch(locationUrl); // Membuka URL lokasi
@@ -516,7 +865,7 @@ class _DataLogPageState extends State<DataLogPage> {
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (data == null)
+            else if (_data == null)
               Container(
                 color: Colors.white,
                 child: Center(
