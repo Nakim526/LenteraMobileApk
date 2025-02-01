@@ -18,6 +18,7 @@ class RecordPage extends StatefulWidget {
 
 class _RecordPageState extends State<RecordPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
+  final DatabaseReference _userRef = FirebaseDatabase.instance.ref("users");
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -225,8 +226,14 @@ class _RecordPageState extends State<RecordPage> {
 
   Future<void> saveData(String name, String nim, String attendance,
       String lesson, String location, String photoUrl) async {
-    await _dbRef.push().set(
-      {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      DatabaseReference postRef = _dbRef.push();
+      DatabaseReference userRef =
+          _userRef.child('${user.uid}/attendance').push();
+      String postUid = postRef.key!;
+      String userPostUid = userRef.key!;
+      await postRef.set({
         "name": name,
         "nim": nim,
         "attendance": attendance,
@@ -234,8 +241,15 @@ class _RecordPageState extends State<RecordPage> {
         "location": location,
         "photoUrl": photoUrl,
         "timestamp": ServerValue.timestamp,
-      },
-    );
+        "uid": postUid,
+        "user": user.uid,
+        "post": userPostUid
+      });
+
+      await userRef.set({
+        'uid': postUid,
+      });
+    }
   }
 
   static Future<String> uploadImage(File imageFile) async {

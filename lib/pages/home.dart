@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class HomePage extends StatelessWidget {
-  HomePage({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final PageController _pageController = PageController(viewportFraction: 1.0);
   bool toClose = false;
 
   Future<void> _logout(BuildContext context) async {
@@ -151,41 +158,79 @@ class HomePage extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
           ),
-          child: ListView.builder(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            itemCount: matkul.length,
-            itemBuilder: (context, index) {
-              return Container(
-                margin: EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 8.0,
+          child: ListView(
+            physics: ClampingScrollPhysics(),
+            children: [
+              Container(
+                alignment: Alignment.center,
+                height: MediaQuery.of(context).size.height * 0.3,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: 3,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      margin: const EdgeInsets.all(20.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20.0),
+                        color: Colors.white,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Belum ada tugas',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 24.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Icon(Icons.check, size: 75.0),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                child: Material(
-                  color: Colors.green.shade100,
-                  elevation: 4.0,
-                  clipBehavior: Clip.hardEdge,
-                  borderRadius: BorderRadius.circular(16.0),
-                  child: ListTile(
-                    title: Text(
-                      matkul[index],
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        fontWeight: FontWeight.bold,
+              ),
+              ListView.builder(
+                padding: EdgeInsets.only(bottom: 16.0),
+                itemCount: matkul.length,
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 8.0,
+                    ),
+                    child: Material(
+                      color: Colors.green.shade100,
+                      elevation: 4.0,
+                      clipBehavior: Clip.hardEdge,
+                      borderRadius: BorderRadius.circular(16.0),
+                      child: ListTile(
+                        title: Text(
+                          matkul[index],
+                          style: TextStyle(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text('Pertemuan ke-1'),
+                        trailing: Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/record',
+                            arguments: matkul[index],
+                          );
+                        },
                       ),
                     ),
-                    subtitle: Text('Pertemuan ke-1'),
-                    trailing: Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/record',
-                        arguments: matkul[index],
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),

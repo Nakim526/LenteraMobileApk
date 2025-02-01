@@ -21,8 +21,7 @@ class _SignInPageState extends State<SignInPage> {
   Future<void> saveUserDataToDatabase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users').child(user.uid);
+      final userRef = FirebaseDatabase.instance.ref('users/${user.uid}');
 
       final snapshot = await userRef.get();
       if (!snapshot.exists) {
@@ -35,8 +34,12 @@ class _SignInPageState extends State<SignInPage> {
 
       if (user.displayName != null) {
         await userRef.update({
-          'email': user.email,
-          'name': user.displayName ?? 'Anonymous',
+          'name': user.displayName,
+          'role': 'admin',
+        });
+      } else {
+        await userRef.update({
+          'role': 'user',
         });
       }
     }

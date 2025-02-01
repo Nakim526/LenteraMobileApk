@@ -194,11 +194,10 @@ class _NotesPageState extends State<NotesPage> {
     }
   }
 
-  Future<void> deleteNotes() async {
+  Future<void> deleteNotes(String uid) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final databaseRef = FirebaseDatabase.instance.ref();
-      final userRef = databaseRef.child('users/${user.uid}/notes/$keyId');
+      final userRef = _dbRef.child('${user.uid}/notes/$uid');
 
       await userRef.remove();
 
@@ -264,7 +263,18 @@ class _NotesPageState extends State<NotesPage> {
               TextButton(
                 child: const Text('Hapus'),
                 onPressed: () {
-                  deleteNotes();
+                  if (_selectedItems.isNotEmpty) {
+                    for (int i = 0; i < _selectedItems.length; i++) {
+                      String uid = _selectedItems[i];
+                      deleteNotes(uid);
+                    }
+                  } else {
+                    deleteNotes(keyId!);
+                  }
+                  setState(() {
+                    _selectedItems.clear();
+                    _isSelect = false;
+                  });
                   Navigator.pop(context);
                 },
               ),

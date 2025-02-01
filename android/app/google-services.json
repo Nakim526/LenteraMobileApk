@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:98574851766:android:c78a63c61d78f6fad79017",
         "android_client_info": {
-          "package_name": "com.presentasi.karya"
+          "package_name": "com.example.login"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "98574851766-ihgbsvvn0ng5e9qkt6ibim4kejpeqeo4.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.presentasi.karya",
+            "package_name": "com.example.login",
             "certificate_hash": "105e56fd5cdf14da742b3432e62516008a132eb3"
           }
         },
@@ -51,6 +51,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "98574851766-mu7c0nbjs5lutatrp1lv0u0i2ju0ojpu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.presentasi.karya",
+            "certificate_hash": "105e56fd5cdf14da742b3432e62516008a132eb3"
+          }
+        },
         {
           "client_id": "98574851766-dfi3s089qp2ktj31gp8ccu3bec902cfn.apps.googleusercontent.com",
           "client_type": 3

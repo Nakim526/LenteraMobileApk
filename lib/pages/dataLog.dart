@@ -15,6 +15,7 @@ class _DataLogPageState extends State<DataLogPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
   List<String> _selectedItems = [];
   List<String> _uidList = [];
+  List<dynamic> _temp = [];
   Map<dynamic, dynamic>? _data;
   String? _sort;
   String? keyId;
@@ -31,71 +32,170 @@ class _DataLogPageState extends State<DataLogPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        if (_sort == 'asc' || _sort == 'desc') {
-          final snapshot = await _dbRef.orderByChild('name').get();
-          if (snapshot.exists) {
-            // Konversi snapshot menjadi Map<String, dynamic>
-            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+        DatabaseReference userRef =
+            FirebaseDatabase.instance.ref('users/${user.uid}');
 
-            // Ubah Map menjadi List untuk sorting
-            List<MapEntry<String, dynamic>> sortedList =
-                rawData.entries.toList();
+        final role = await userRef.child('role').get();
+        if (role.exists && role.value == 'admin') {
+          if (_sort == 'asc' || _sort == 'desc') {
+            final snapshot = await _dbRef.orderByChild('name').get();
+            if (snapshot.exists) {
+              // Konversi snapshot menjadi Map<String, dynamic>
+              final rawData = Map<String, dynamic>.from(snapshot.value as Map);
 
-            // Urutkan data berdasarkan "name"
-            sortedList.sort((a, b) {
-              return a.value['name']
-                  .toString()
-                  .compareTo(b.value['name'].toString());
-            });
+              // Ubah Map menjadi List untuk sorting
+              List<MapEntry<String, dynamic>> sortedList =
+                  rawData.entries.toList();
 
-            // Jika DESC, balikkan urutannya
-            if (_sort == 'desc') {
-              sortedList = sortedList.reversed.toList();
+              // Urutkan data berdasarkan "name"
+              sortedList.sort((a, b) {
+                return a.value['name']
+                    .toString()
+                    .compareTo(b.value['name'].toString());
+              });
+
+              // Jika DESC, balikkan urutannya
+              if (_sort == 'desc') {
+                sortedList = sortedList.reversed.toList();
+              }
+
+              // Ubah kembali menjadi Map
+              final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+              setState(() {
+                _data = sortedData;
+                _uidList = _data!.keys.cast<String>().toList();
+              });
+            } else {
+              setState(() {
+                _data = null;
+              });
+            }
+          } else if (_sort == 'baru' || _sort == 'lama') {
+            final snapshot = await _dbRef.orderByChild('timestamp').get();
+            if (snapshot.exists) {
+              // Konversi snapshot menjadi Map<String, dynamic>
+              final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+
+              // Ubah Map menjadi List untuk sorting
+              List<MapEntry<String, dynamic>> sortedList =
+                  rawData.entries.toList();
+
+              // Urutkan data berdasarkan "timestamp"
+              sortedList.sort((a, b) {
+                return a.value['timestamp'].compareTo(b.value['timestamp']);
+              });
+
+              // Jika DESC, balikkan urutannya
+              if (_sort == 'baru') {
+                sortedList = sortedList.reversed.toList();
+              }
+
+              // Ubah kembali menjadi Map
+              final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+              setState(() {
+                _data = sortedData;
+              });
+            } else {
+              setState(() {
+                _data = null;
+              });
+            }
+          }
+        } else if (role.exists && role.value == 'user') {
+          final postRef = await userRef.child('attendance').get();
+          if (postRef.exists) {
+            final uploadsMap = Map<String, dynamic>.from(postRef.value as Map);
+            final List<String> uploadsList =
+                uploadsMap.keys.map((key) => key.toString()).toList();
+
+            for (int i = 0; i < uploadsList.length; i++) {
+              final uploadId = uploadsList[i];
+              final uploadRef =
+                  await userRef.child('attendance/$uploadId').get();
+
+              if (uploadRef.exists) {
+                final uploadIds =
+                    Map<String, dynamic>.from(uploadRef.value as Map);
+
+                _temp.add(uploadIds['uid']);
+              }
             }
 
-            // Ubah kembali menjadi Map
-            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+            // Cek apakah _temp memiliki UID yang sudah tersimpan
+            if (_temp.isNotEmpty) {
+              if (_sort == 'asc' || _sort == 'desc') {
+                final snapshot = await _dbRef.orderByChild('name').get();
+                if (snapshot.exists && snapshot.value != null) {
+                  // Konversi snapshot menjadi Map<String, dynamic>
+                  final rawData =
+                      Map<String, dynamic>.from(snapshot.value as Map);
 
-            setState(() {
-              _data = sortedData;
-            });
+                  // Filter hanya data dengan UID yang ada di _temp
+                  List<MapEntry<String, dynamic>> filteredData = rawData.entries
+                      .where((entry) => _temp.contains(entry.value['uid']))
+                      .toList();
 
-            setState(() {
-              _uidList = _data!.keys.cast<String>().toList();
-            });
-          }
-        } else if (_sort == 'baru' || _sort == 'lama') {
-          final snapshot = await _dbRef.orderByChild('timestamp').get();
-          if (snapshot.exists) {
-            // Konversi snapshot menjadi Map<String, dynamic>
-            final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+                  // Urutkan data berdasarkan "name"
+                  filteredData.sort((a, b) =>
+                      (a.value['name']?.toString() ?? '')
+                          .compareTo(b.value['name']?.toString() ?? ''));
 
-            // Ubah Map menjadi List untuk sorting
-            List<MapEntry<String, dynamic>> sortedList =
-                rawData.entries.toList();
+                  // Jika DESC, balikkan urutannya
+                  if (_sort == 'desc') {
+                    filteredData = filteredData.reversed.toList();
+                  }
 
-            // Urutkan data berdasarkan "timestamp"
-            sortedList.sort((a, b) {
-              return a.value['timestamp'].compareTo(b.value['timestamp']);
-            });
+                  // Ubah kembali menjadi Map
+                  final sortedData =
+                      Map<String, dynamic>.fromEntries(filteredData);
 
-            // Jika DESC, balikkan urutannya
-            if (_sort == 'baru') {
-              sortedList = sortedList.reversed.toList();
+                  setState(() {
+                    _data = sortedData;
+                  });
+                }
+              } else if (_sort == 'baru' || _sort == 'lama') {
+                final snapshot = await _dbRef.orderByChild('timestamp').get();
+                if (snapshot.exists && snapshot.value != null) {
+                  // Konversi snapshot menjadi Map<String, dynamic>
+                  final rawData =
+                      Map<String, dynamic>.from(snapshot.value as Map);
+
+                  // Filter hanya data dengan UID yang ada di _temp
+                  List<MapEntry<String, dynamic>> filteredData = rawData.entries
+                      .where((entry) => _temp.contains(entry.value['uid']))
+                      .toList();
+
+                  // Urutkan data berdasarkan "timestamp"
+                  filteredData.sort((a, b) => (a.value['timestamp'] ?? 0)
+                      .compareTo(b.value['timestamp'] ?? 0));
+
+                  // Jika "baru" (DESC), balikkan urutannya
+                  if (_sort == 'baru') {
+                    filteredData = filteredData.reversed.toList();
+                  }
+
+                  // Ubah kembali menjadi Map
+                  final sortedData =
+                      Map<String, dynamic>.fromEntries(filteredData);
+
+                  setState(() {
+                    _data = sortedData;
+                  });
+                }
+              }
             }
-
-            // Ubah kembali menjadi Map
-            final sortedData = Map<String, dynamic>.fromEntries(sortedList);
-
+          } else if (!postRef.exists) {
             setState(() {
-              _data = sortedData;
+              _data = null;
             });
           }
+        } else {
+          setState(() {
+            _data = null;
+          });
         }
-      } else {
-        setState(() {
-          _data = null;
-        });
       }
     } finally {
       setState(() {
@@ -124,15 +224,16 @@ class _DataLogPageState extends State<DataLogPage> {
         if (_selectedItems.isEmpty) {
           return;
         } else {
+          DatabaseReference postUser = FirebaseDatabase.instance.ref('users');
           await showDialog<void>(
             context: context,
             barrierDismissible: false,
             builder: (BuildContext context) {
               return AlertDialog(
                 title: Text(
-                  uid != null
+                  keyId == null
                       ? 'Hapus Riwayat'
-                      : '${_selectedItems.length} dipilih',
+                      : '${_selectedItems.length} item dipilih',
                 ),
                 content: Text('Anda yakin ingin menghapus riwayat ini?'),
                 actions: <Widget>[
@@ -150,6 +251,9 @@ class _DataLogPageState extends State<DataLogPage> {
                       } else {
                         for (int i = 0; i < _selectedItems.length; i++) {
                           uid = _selectedItems[i];
+                          String postId = _data![uid]['post'];
+                          String userId = _data![uid]['user'];
+                          postUser.child('$userId/attendance/$postId').remove();
                           _dbRef.child(uid!).remove();
                         }
                       }
