@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,19 +18,59 @@ class _ProfilePageState extends State<ProfilePage> {
   final GlobalKey<FormFieldState> fieldKeyName = GlobalKey<FormFieldState>();
   final GlobalKey<FormFieldState> fieldKeyNim = GlobalKey<FormFieldState>();
   final GlobalKey<FormFieldState> fieldKeyAddress = GlobalKey<FormFieldState>();
+  static const String clientId = "ca88e99d5b919db";
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
   final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  Map<String, dynamic>? _userData;
+  String? _photoPath;
   bool _isEditing = false;
   bool _isSaving = false;
   bool _isLoading = false;
-  Map<String, dynamic>? _userData;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  Future<void> requestStoragePermission() async {
+    final status = await Permission.storage.status;
+    if (!status.isGranted) {
+      await Permission.storage.request();
+    }
+  }
+
+  Future<void> pickFile() async {
+    await requestStoragePermission();
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+    );
+
+    if (result != null) {
+      setState(() {
+        _photoPath = result.files.single.path;
+      });
+    }
+  }
+
+  static Future<String> uploadImage(File imageFile) async {
+    final url = Uri.parse('https://api.imgur.com/3/image');
+    final request = http.MultipartRequest('POST', url)
+      ..fields['type'] = 'file'
+      ..headers['Authorization'] = 'Client-ID $clientId'
+      ..files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+
+    final response = await request.send();
+    final responseData = await http.Response.fromStream(response);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(responseData.body);
+      return data['data']['link'];
+    } else {
+      throw Exception('Failed to upload image to Imgur');
+    }
   }
 
   Future<void> saveUserDataToDatabase() async {
@@ -37,6 +82,10 @@ class _ProfilePageState extends State<ProfilePage> {
       try {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
+          String photoUrl = '';
+          if (_photoPath != null) {
+            photoUrl = await uploadImage(File(_photoPath!));
+          }
           final databaseRef = FirebaseDatabase.instance.ref();
           final userRef = databaseRef.child('users').child(user.uid);
 
@@ -45,6 +94,7 @@ class _ProfilePageState extends State<ProfilePage> {
             'name': _nameController.text.trim(),
             'nim': _nimController.text.trim(),
             'address': _addressController.text.trim(),
+            'photo': photoUrl
           });
         }
 
@@ -100,6 +150,14 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _isLoading = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _nimController.dispose();
+    _addressController.dispose();
+    super.dispose();
   }
 
   @override
@@ -181,9 +239,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 onPressed: () {
                   if (_isEditing) {
                     setState(() {
-                      _nameController.text = _userData?['name'] ?? '';
-                      _nimController.text = _userData?['nim'] ?? '';
-                      _addressController.text = _userData?['address'] ?? '';
+                      _nameController.clear();
+                      _nimController.clear();
+                      _addressController.clear();
                     });
                   } else {
                     setState(() {
@@ -216,22 +274,28 @@ class _ProfilePageState extends State<ProfilePage> {
                       Container(
                         padding: EdgeInsets.symmetric(vertical: 50),
                         width: MediaQuery.of(context).size.width,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              height: profileHeight,
-                              width: profileHeight,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[600],
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Icon(Icons.person,
-                                    size: 150, color: Colors.white),
-                              ),
-                            ),
-                          ],
+                        child: Container(
+                          height: profileHeight,
+                          width: profileHeight,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[600],
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: _userData!['photo'] == null
+                              ? Icon(
+                                  Icons.person,
+                                  size: profileHeight * 0.7,
+                                  color: Colors.white,
+                                )
+                              : ClipOval(
+                                  child: Image.network(
+                                    _userData!['photo'],
+                                    fit: BoxFit.cover,
+                                    width: profileHeight,
+                                    height: profileHeight,
+                                  ),
+                                ),
                         ),
                       ),
                       Container(
@@ -402,22 +466,62 @@ class _ProfilePageState extends State<ProfilePage> {
                       Container(
                         padding: EdgeInsets.symmetric(vertical: 50),
                         width: MediaQuery.of(context).size.width,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              height: profileHeight,
-                              width: profileHeight,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[600],
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Icon(Icons.person,
-                                    size: 150, color: Colors.white),
-                              ),
-                            ),
-                          ],
+                        child: Container(
+                          height: profileHeight,
+                          width: profileHeight,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[600],
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: _photoPath != null
+                              ? Stack(
+                                  children: [
+                                    ClipOval(
+                                      child: Image.file(
+                                        File(_photoPath!),
+                                        fit: BoxFit.cover,
+                                        height: profileHeight,
+                                        width: profileHeight,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: IconButton(
+                                          icon: Icon(
+                                            Icons.delete,
+                                            size: profileHeight * 0.15,
+                                            color: Colors.black,
+                                          ),
+                                          onPressed: () {
+                                            pickFile();
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : IconButton(
+                                  onPressed: () {
+                                    pickFile();
+                                  },
+                                  icon: Icon(
+                                    Icons.person,
+                                    size: profileHeight * 0.7,
+                                    color: Colors.white,
+                                  ),
+                                  style: IconButton.styleFrom(
+                                    shape: CircleBorder(),
+                                    padding:
+                                        EdgeInsets.all(profileHeight * 0.15),
+                                  ),
+                                ),
                         ),
                       ),
                       Container(
@@ -446,44 +550,33 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             fillColor: Colors.white,
                             filled: true,
-                            labelText: 'Nama',
-                            labelStyle: TextStyle(
-                              color: Colors.black,
-                              backgroundColor: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            hintText: 'Nama',
                             enabledBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.grey,
-                              ), // Warna saat tidak fokus
+                                width: 2,
+                              ),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.blue[900]!,
                                 width: 2,
-                              ), // Warna saat fokus
+                              ),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red,
                                 width: 1,
-                              ), // Warna saat error
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.black12,
-                              ), // Warna saat disabled
+                              ),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             focusedErrorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red[900]!,
                                 width: 2,
-                              ), // Warna saat error dan fokus
+                              ),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             errorStyle: TextStyle(
@@ -553,44 +646,33 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             fillColor: Colors.white,
                             filled: true,
-                            labelText: 'NIM',
-                            labelStyle: TextStyle(
-                              color: Colors.black,
-                              backgroundColor: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            hintText: 'NIM',
                             enabledBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.grey,
-                              ), // Warna saat tidak fokus
+                                width: 2,
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.blue[900]!,
                                 width: 2,
-                              ), // Warna saat fokus
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red,
                                 width: 1,
-                              ), // Warna saat error
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.black12,
-                              ), // Warna saat disabled
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             focusedErrorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red[900]!,
                                 width: 2,
-                              ), // Warna saat error dan fokus
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             errorStyle: TextStyle(
@@ -660,44 +742,33 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             fillColor: Colors.white,
                             filled: true,
-                            labelText: 'Alamat',
-                            labelStyle: TextStyle(
-                              color: Colors.black,
-                              backgroundColor: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            hintText: 'Alamat',
                             enabledBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.grey,
-                              ), // Warna saat tidak fokus
+                                width: 2,
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.blue[900]!,
                                 width: 2,
-                              ), // Warna saat fokus
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red,
                                 width: 1,
-                              ), // Warna saat error
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.black12,
-                              ), // Warna saat disabled
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             focusedErrorBorder: OutlineInputBorder(
                               borderSide: BorderSide(
                                 color: Colors.red[900]!,
                                 width: 2,
-                              ), // Warna saat error dan fokus
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             errorStyle: TextStyle(

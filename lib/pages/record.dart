@@ -43,6 +43,7 @@ class _RecordPageState extends State<RecordPage> {
   Future<void> _initializeCameras() async {
     WidgetsFlutterBinding.ensureInitialized();
     cameras = await availableCameras();
+    await _checkAndRequestLocationPermission();
     if (cameras!.isNotEmpty) {
       _initializeCamera(frontCamera: true);
     } else {
@@ -85,13 +86,13 @@ class _RecordPageState extends State<RecordPage> {
   @override
   void dispose() {
     _cameraController?.dispose();
+    _nameController.dispose();
+    _nimController.dispose();
     super.dispose();
   }
 
   Future<String> _getLocation() async {
     try {
-      await _checkAndRequestLocationPermission();
-
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -244,10 +245,6 @@ class _RecordPageState extends State<RecordPage> {
         "uid": postUid,
         "user": user.uid,
         "post": userPostUid
-      });
-
-      await userRef.set({
-        'uid': postUid,
       });
     }
   }

@@ -9,6 +9,8 @@ import 'pages/record.dart';
 import 'pages/profile.dart';
 import 'pages/dataLog.dart';
 import 'pages/notes.dart';
+import 'pages/lesson.dart';
+import 'pages/chat.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +43,8 @@ class MyApp extends StatelessWidget {
         '/profile': (context) => ProfilePage(),
         '/dataLog': (context) => DataLogPage(),
         '/notes': (context) => NotesPage(),
+        '/lesson': (context) => LessonPage(),
+        '/chat': (context) => ChatPage(),
       },
     );
   }

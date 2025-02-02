@@ -45,20 +45,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    List<String> matkul = [
-      'Pemrograman Web 1',
-      'Struktur Data',
-      'Basis Data',
-      'Pemrograman Terstruktur',
-      'Algoritma dan Pemrograman',
-      'Pemrograman Berorientasi Objek',
-      'Fisika Terapan',
-      'Elektronika Digital',
-      'Pengenalan Teknologi Informasi dan Ilmu Komputer',
-      'Sistem Tertanam',
-      'Sistem Operasi Komputer',
-    ];
+    Map<String, String> matkul = {
+      'Pemrograman Web 1': 'Senin, 08.00-09.40',
+      'Struktur Data': 'Selasa, 09.45-11.25',
+      'Basis Data': 'Rabu, 12.50-14.30',
+      'Pemrograman Terstruktur': 'Kamis, 14.35-16.15',
+      'Algoritma dan Pemrograman': 'Jum\'at, 08.00-09.40',
+      'Pemrograman Berorientasi Objek': 'Senin, 09.45-11.25',
+      'Fisika Terapan': 'Selasa, 12.50-14.30',
+      'Elektronika Digital': 'Rabu, 14.35-16.15',
+      'Pengenalan Teknologi Informasi dan Ilmu Komputer': 'Kamis, 08.00-09.40',
+      'Sistem Tertanam': 'Jum\'at, 09.45-11.25',
+      'Sistem Operasi Komputer': 'Senin, 12.50-14.30',
+    };
     return WillPopScope(
       onWillPop: () {
         return _onExitConfirmation(context);
@@ -117,12 +123,21 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
               ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Sign Out'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _logout(context);
-                  }),
+                leading: Icon(Icons.chat),
+                title: Text('Chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/chat');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.logout),
+                title: Text('Sign Out'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _logout(context);
+                },
+              ),
             ],
           ),
         ),
@@ -198,6 +213,7 @@ class _HomePageState extends State<HomePage> {
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
                 itemBuilder: (context, index) {
+                  final key = matkul.keys.elementAt(index);
                   return Container(
                     margin: EdgeInsets.symmetric(
                       horizontal: 20.0,
@@ -210,19 +226,22 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(16.0),
                       child: ListTile(
                         title: Text(
-                          matkul[index],
+                          key,
                           style: TextStyle(
                             fontSize: 16.0,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        subtitle: Text('Pertemuan ke-1'),
+                        subtitle: Text(matkul[key]!),
                         trailing: Icon(Icons.arrow_forward_ios),
                         onTap: () {
                           Navigator.pushNamed(
                             context,
-                            '/record',
-                            arguments: matkul[index],
+                            '/lesson',
+                            arguments: <String, String>{
+                              'matkul': key,
+                              'jadwal': matkul[key]!
+                            },
                           );
                         },
                       ),

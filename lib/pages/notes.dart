@@ -38,6 +38,14 @@ class _NotesPageState extends State<NotesPage> {
     _refresh();
   }
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _subtitleController.dispose();
+    _fillController.dispose();
+    super.dispose();
+  }
+
   Future<void> _getCurrentData() async {
     setState(() {
       _titleController.text = _data![keyId]['title'];
