@@ -178,13 +178,13 @@ class _HomePageState extends State<HomePage> {
             children: [
               Container(
                 alignment: Alignment.center,
-                height: MediaQuery.of(context).size.height * 0.3,
+                height: MediaQuery.of(context).size.height * 0.25,
+                margin: const EdgeInsets.all(20.0),
                 child: PageView.builder(
                   controller: _pageController,
                   itemCount: 3,
                   itemBuilder: (context, index) {
                     return Container(
-                      margin: const EdgeInsets.all(20.0),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20.0),
                         color: Colors.white,

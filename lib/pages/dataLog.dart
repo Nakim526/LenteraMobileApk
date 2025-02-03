@@ -15,7 +15,7 @@ class _DataLogPageState extends State<DataLogPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
   List<String> _selectedItems = [];
   List<String> _uidList = [];
-  List<dynamic> _temp = [];
+  final List<dynamic> _temp = [];
   Map<dynamic, dynamic>? _data;
   String? _sort;
   String? keyId;
