@@ -12,19 +12,50 @@ class DataLogPage extends StatefulWidget {
 }
 
 class _DataLogPageState extends State<DataLogPage> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("tasks");
   List<String> _selectedItems = [];
   List<String> _uidList = [];
   final List<dynamic> _temp = [];
   Map<dynamic, dynamic>? _data;
   String? _sort;
   String? keyId;
+  String? _matkul;
+  String? _taskId;
+  String? _postUser;
   bool _isSelect = false;
   bool _isLoading = false;
   bool _isOpen = false;
   bool _isProcessing = false;
+  bool _isFirst = true;
+  bool _isAdmin = false;
 
-  Future<void> _refresh() async {
+  @override
+  void initState() {
+    super.initState();
+    _sort = 'asc';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_isFirst) {
+      // Pindahkan akses ModalRoute.of(context) ke sini
+      final matkul = ModalRoute.of(context)!.settings.arguments as Map;
+
+      setState(() {
+        _isFirst = false;
+        _matkul = matkul['matkul'];
+        _taskId = matkul['uid'];
+        _postUser = matkul['postUser'];
+      });
+
+      _loadData();
+      return;
+    }
+  }
+
+  Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
@@ -32,13 +63,18 @@ class _DataLogPageState extends State<DataLogPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        DatabaseReference userRef =
-            FirebaseDatabase.instance.ref('users/${user.uid}');
-
+        final userRef = FirebaseDatabase.instance.ref('users/${user.uid}');
         final role = await userRef.child('role').get();
+
         if (role.exists && role.value == 'admin') {
+          setState(() {
+            _isAdmin = true;
+          });
           if (_sort == 'asc' || _sort == 'desc') {
-            final snapshot = await _dbRef.orderByChild('name').get();
+            final snapshot = await _dbRef
+                .child('$_matkul/$_taskId/presences')
+                .orderByChild('name')
+                .get();
             if (snapshot.exists) {
               // Konversi snapshot menjadi Map<String, dynamic>
               final rawData = Map<String, dynamic>.from(snapshot.value as Map);
@@ -104,92 +140,43 @@ class _DataLogPageState extends State<DataLogPage> {
             }
           }
         } else if (role.exists && role.value == 'user') {
-          final postRef = await userRef.child('attendance').get();
-          if (postRef.exists) {
-            final uploadsMap = Map<String, dynamic>.from(postRef.value as Map);
-            final List<String> uploadsList =
-                uploadsMap.keys.map((key) => key.toString()).toList();
-
-            for (int i = 0; i < uploadsList.length; i++) {
-              final uploadId = uploadsList[i];
-              final uploadRef =
-                  await userRef.child('attendance/$uploadId').get();
-
-              if (uploadRef.exists) {
-                final uploadIds =
-                    Map<String, dynamic>.from(uploadRef.value as Map);
-
-                _temp.add(uploadIds['uid']);
-              }
+          if (_postUser != null) {
+            final postUser =
+                await userRef.child('presences/$_matkul/$_postUser').get();
+            final data = Map.from(postUser.value as Map);
+            String postUid = data['postUid'];
+            final snapshot =
+                await _dbRef.child('$_matkul/$_taskId/presences').get();
+            if (snapshot.exists) {
+              await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text('Pemberitahuan'),
+                  content: Text('Anda sudah mengisi presensi ini.'),
+                  actions: [
+                    TextButton(
+                      child: Text('OK'),
+                      onPressed: () {
+                        setState(() {
+                          _isOpen = true;
+                          _data = Map.from(snapshot.value as Map);
+                          keyId = postUid;
+                        });
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ],
+                ),
+              );
             }
-
-            // Cek apakah _temp memiliki UID yang sudah tersimpan
-            if (_temp.isNotEmpty) {
-              if (_sort == 'asc' || _sort == 'desc') {
-                final snapshot = await _dbRef.orderByChild('name').get();
-                if (snapshot.exists && snapshot.value != null) {
-                  // Konversi snapshot menjadi Map<String, dynamic>
-                  final rawData =
-                      Map<String, dynamic>.from(snapshot.value as Map);
-
-                  // Filter hanya data dengan UID yang ada di _temp
-                  List<MapEntry<String, dynamic>> filteredData = rawData.entries
-                      .where((entry) => _temp.contains(entry.value['uid']))
-                      .toList();
-
-                  // Urutkan data berdasarkan "name"
-                  filteredData.sort((a, b) =>
-                      (a.value['name']?.toString() ?? '')
-                          .compareTo(b.value['name']?.toString() ?? ''));
-
-                  // Jika DESC, balikkan urutannya
-                  if (_sort == 'desc') {
-                    filteredData = filteredData.reversed.toList();
-                  }
-
-                  // Ubah kembali menjadi Map
-                  final sortedData =
-                      Map<String, dynamic>.fromEntries(filteredData);
-
-                  setState(() {
-                    _data = sortedData;
-                  });
-                }
-              } else if (_sort == 'baru' || _sort == 'lama') {
-                final snapshot = await _dbRef.orderByChild('timestamp').get();
-                if (snapshot.exists && snapshot.value != null) {
-                  // Konversi snapshot menjadi Map<String, dynamic>
-                  final rawData =
-                      Map<String, dynamic>.from(snapshot.value as Map);
-
-                  // Filter hanya data dengan UID yang ada di _temp
-                  List<MapEntry<String, dynamic>> filteredData = rawData.entries
-                      .where((entry) => _temp.contains(entry.value['uid']))
-                      .toList();
-
-                  // Urutkan data berdasarkan "timestamp"
-                  filteredData.sort((a, b) => (a.value['timestamp'] ?? 0)
-                      .compareTo(b.value['timestamp'] ?? 0));
-
-                  // Jika "baru" (DESC), balikkan urutannya
-                  if (_sort == 'baru') {
-                    filteredData = filteredData.reversed.toList();
-                  }
-
-                  // Ubah kembali menjadi Map
-                  final sortedData =
-                      Map<String, dynamic>.fromEntries(filteredData);
-
-                  setState(() {
-                    _data = sortedData;
-                  });
-                }
-              }
-            }
-          } else if (!postRef.exists) {
-            setState(() {
-              _data = null;
-            });
+          } else {
+            // ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            //   content: Text(_postUser.toString()),
+            // ));
+            // Navigator.pushReplacementNamed(context, '/presence', arguments: {
+            //   'matkul': _matkul,
+            //   'uid': _taskId,
+            // });
           }
         } else {
           setState(() {
@@ -202,13 +189,6 @@ class _DataLogPageState extends State<DataLogPage> {
         _isLoading = false;
       });
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _sort = 'asc';
-    _refresh();
   }
 
   String formatTimestamp(int timestamp) {
@@ -253,14 +233,14 @@ class _DataLogPageState extends State<DataLogPage> {
                           uid = _selectedItems[i];
                           String postId = _data![uid]['post'];
                           String userId = _data![uid]['user'];
-                          postUser.child('$userId/attendance/$postId').remove();
+                          postUser.child('$userId/presence/$postId').remove();
                           _dbRef.child(uid!).remove();
                         }
                       }
                       setState(() {
                         _isOpen = false;
                         _isSelect = false;
-                        _refresh();
+                        _loadData();
                       });
                       Navigator.pop(context);
                     },
@@ -282,7 +262,9 @@ class _DataLogPageState extends State<DataLogPage> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        if (_isOpen) {
+        if (!_isAdmin) {
+          return true;
+        } else if (_isOpen) {
           setState(() {
             _isOpen = false;
             keyId = null;
@@ -343,27 +325,27 @@ class _DataLogPageState extends State<DataLogPage> {
                             });
                           } else if (value == 'refresh') {
                             setState(() {
-                              _refresh();
+                              _loadData();
                             });
                           } else if (value == 'asc') {
                             setState(() {
                               _sort = 'asc';
-                              _refresh();
+                              _loadData();
                             });
                           } else if (value == 'desc') {
                             setState(() {
                               _sort = 'desc';
-                              _refresh();
+                              _loadData();
                             });
                           } else if (value == 'terbaru') {
                             setState(() {
                               _sort = 'baru';
-                              _refresh();
+                              _loadData();
                             });
                           } else if (value == 'terlama') {
                             setState(() {
                               _sort = 'lama';
-                              _refresh();
+                              _loadData();
                             });
                           }
                         },
@@ -841,7 +823,7 @@ class _DataLogPageState extends State<DataLogPage> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      _data![keyId]['attendance'],
+                                      _data![keyId]['presence'],
                                       style: TextStyle(
                                         fontSize: 16.0,
                                         fontWeight: FontWeight.bold,
@@ -962,26 +944,27 @@ class _DataLogPageState extends State<DataLogPage> {
                   ),
                 ],
               ),
-            if (_isLoading)
-              Container(
-                color: Colors.black45,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_data == null)
+            _isLoading
+                ? Container(
+                    color: Colors.black45,
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : Container(),
+            if (!_isOpen && _data == null && !_isLoading)
               Container(
                 color: Colors.white,
                 child: Center(
                   child: Text(
-                    "Not Attendance yet",
+                    "Not presence yet",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-              )
+              ),
           ],
         ),
       ),

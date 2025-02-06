@@ -652,7 +652,6 @@ class _NotesPageState extends State<NotesPage> {
                               ),
                               contentPadding: EdgeInsets.only(
                                 left: 16.0,
-                                right: 8.0,
                               ),
                               onLongPress: () {
                                 setState(() {
@@ -694,6 +693,7 @@ class _NotesPageState extends State<NotesPage> {
                                       },
                                     )
                                   : PopupMenuButton<int>(
+                                      menuPadding: EdgeInsets.zero,
                                       icon: Icon(Icons.more_vert),
                                       onSelected: (value) {
                                         // Tindakan ketika item dipilih

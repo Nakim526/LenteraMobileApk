@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -178,16 +179,18 @@ class _HomePageState extends State<HomePage> {
             children: [
               Container(
                 alignment: Alignment.center,
-                height: MediaQuery.of(context).size.height * 0.25,
-                margin: const EdgeInsets.all(20.0),
+                height: MediaQuery.of(context).size.height * 0.3,
                 child: PageView.builder(
                   controller: _pageController,
-                  itemCount: 3,
+                  itemCount: 30,
                   itemBuilder: (context, index) {
                     return Container(
+                      margin: const EdgeInsets.all(20.0),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20.0),
-                        color: Colors.white,
+                        border: Border.all(color: Colors.black, width: 5.0),
+                        color:
+                            Colors.primaries[index % Colors.primaries.length],
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -198,6 +201,12 @@ class _HomePageState extends State<HomePage> {
                             style: TextStyle(
                               fontSize: 24.0,
                               fontWeight: FontWeight.bold,
+                              color: Colors.primaries[
+                                              index % Colors.primaries.length]
+                                          .computeLuminance() >
+                                      0.24
+                                  ? Colors.black
+                                  : Colors.white,
                             ),
                           ),
                           Icon(Icons.check, size: 75.0),
@@ -238,9 +247,12 @@ class _HomePageState extends State<HomePage> {
                           Navigator.pushNamed(
                             context,
                             '/lesson',
-                            arguments: <String, String>{
+                            arguments: <String, dynamic>{
                               'matkul': key,
-                              'jadwal': matkul[key]!
+                              'jadwal': matkul[key]!,
+                              'color': Colors
+                                  .primaries[index % Colors.primaries.length]
+                                  .value,
                             },
                           );
                         },

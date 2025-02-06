@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'src/firebase_options.dart';
-import 'pages/sign-in.dart'; // Import halaman login
+import 'pages/sign-in.dart';
 import 'pages/sign-up.dart';
 import 'pages/home.dart';
-import 'pages/record.dart';
+import 'pages/presence.dart';
 import 'pages/profile.dart';
 import 'pages/dataLog.dart';
 import 'pages/notes.dart';
 import 'pages/lesson.dart';
 import 'pages/chat.dart';
+import 'pages/task.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,12 +40,13 @@ class MyApp extends StatelessWidget {
         '/sign-in': (context) => SignInPage(),
         '/sign-up': (context) => SignUpPage(),
         '/home': (context) => HomePage(),
-        '/record': (context) => RecordPage(),
+        '/presence': (context) => PresencePage(),
         '/profile': (context) => ProfilePage(),
-        '/dataLog': (context) => DataLogPage(),
+        '/datalog': (context) => DataLogPage(),
         '/notes': (context) => NotesPage(),
         '/lesson': (context) => LessonPage(),
         '/chat': (context) => ChatPage(),
+        '/task': (context) => TaskPage(),
       },
     );
   }

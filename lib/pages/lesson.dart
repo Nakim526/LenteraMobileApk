@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class LessonPage extends StatefulWidget {
   const LessonPage({super.key});
@@ -9,85 +11,73 @@ class LessonPage extends StatefulWidget {
 }
 
 class _LessonPageState extends State<LessonPage> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('lessons');
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('tasks');
+  Map<dynamic, dynamic>? _data;
+  Map<dynamic, dynamic>? _matkul;
+  String? postUser;
+  bool _isAdmin = false;
   bool _isLoading = false;
+  bool _isFirst = true;
 
-  void initstate() {
+  @override
+  void initState() {
     super.initState();
-    _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_isFirst) {
+      // Pindahkan akses ModalRoute.of(context) ke sini
+      final matkul = ModalRoute.of(context)!.settings.arguments as Map;
+
+      setState(() {
+        _isFirst = false;
+        _matkul = matkul;
+      });
+
+      _loadData();
+      return;
+    }
   }
 
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
+
     try {
-      await _dbRef.push().set({
-        'matkul': 'Pemrograman Web 1',
-        'jadwal': 'Senin, 08.00-09.40',
-        'url':
-            'https://drive.google.com/drive/folders/1CIbV6B6PPLCaOS03AZi_V9PudCDJ0FkO'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Struktur Data',
-        'jadwal': 'Selasa, 09.45-11.25',
-        'url':
-            'https://drive.google.com/drive/folders/1KYMzou-ljLuFIDHTW6PXBS5K9tfifQdX'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Basis Data',
-        'jadwal': 'Rabu, 12.50-14.30',
-        'url':
-            'https://drive.google.com/drive/folders/14GskqOWlFLKFMBKTDE9BhTfk_-JZ10hL'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Pemrograman Terstruktur',
-        'jadwal': 'Kamis, 14.35-16.15',
-        'url':
-            'https://drive.google.com/drive/folders/1gEtfYQx4raaLJgsskM-S-6bwIPRQeGdQ'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Algoritma dan Pemrograman',
-        'jadwal': 'Jum\'at, 08.00-09.40',
-        'url':
-            'https://drive.google.com/drive/folders/18am1POmcnD1g1PeE-dBokD9m4plS00Ew'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Pemrograman Berorientasi Objek',
-        'jadwal': 'Senin, 09.45-11.25',
-        'url':
-            'https://drive.google.com/drive/folders/1EGvM-fJTsWWMxvtEJdu76xohVXQHNB0q'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Fisika Terapan',
-        'jadwal': 'Selasa, 12.50-14.30',
-        'url':
-            'https://drive.google.com/drive/folders/1U0N0iNqUbYqzjiOldHltnIc_RGEp6xk7'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Elektronika Digital',
-        'jadwal': 'Rabu, 14.35-16.15',
-        'url':
-            'https://drive.google.com/drive/folders/19GLSvTGC9Ifd7cI1h3Y7kfQ0VtYER1wB'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Pengenalan Teknologi Informasi dan Ilmu Komputer',
-        'jadwal': 'Kamis, 08.00-09.40',
-        'url':
-            'https://drive.google.com/drive/folders/1GBPC0_f9IG7LRdTe79VwqwcxYBjz4QIh'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Sistem Tertanam',
-        'jadwal': 'Jum\'at, 09.45-11.25',
-        'url':
-            'https://drive.google.com/drive/folders/1RDWTGvPu7IJwUJIqJPyF9W0YAr1gHRuo'
-      });
-      await _dbRef.push().set({
-        'matkul': 'Sistem Operasi Komputer',
-        'jadwal': 'Senin, 12.50-14.30',
-        'url':
-            'https://drive.google.com/drive/folders/16a7RWugCMVaGkS0VjhFlqya-SmKuOQun'
-      });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final databaseRef = FirebaseDatabase.instance.ref('users/${user.uid}');
+        final role = await databaseRef.child('role').get();
+        if (role.exists && role.value == 'admin') {
+          setState(() {
+            _isAdmin = true;
+          });
+        }
+        final DatabaseReference taskRef = _dbRef.child(_matkul!['matkul']);
+        final snapshot = await taskRef.orderByChild('timestamp').get();
+        if (snapshot.exists) {
+          final rawData = Map<String, dynamic>.from(snapshot.value as Map);
+          List<MapEntry<String, dynamic>> sortedList = rawData.entries.toList();
+
+          sortedList.sort((a, b) {
+            return a.value['timestamp'].compareTo(b.value['timestamp']);
+          });
+          sortedList = sortedList.reversed.toList();
+          final sortedData = Map<String, dynamic>.fromEntries(sortedList);
+
+          setState(() {
+            _data = sortedData;
+          });
+        } else {
+          setState(() {
+            _data = null;
+          });
+        }
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -95,147 +85,328 @@ class _LessonPageState extends State<LessonPage> {
     }
   }
 
+  Future<void> _navigateAndRefresh(String routeName, Object? object) async {
+    await Navigator.pushNamed(context, routeName, arguments: object);
+    _loadData();
+  }
+
+  String formatTimestamp(int timestamp) {
+    DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return DateFormat('dd MMM yyyy, HH:mm').format(date);
+  }
+
+  Future<String?> userCheck(String idKey) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final snapshot =
+          await _dbRef.child('${_matkul!['matkul']}/$idKey/presences').get();
+      if (snapshot.exists) {
+        final outerMap = Map.from(snapshot.value as Map);
+        for (var key in outerMap.keys) {
+          if (outerMap[key]['user'] == user.uid) {
+            setState(() {
+              _data = outerMap;
+            });
+            return key;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final matkul = Map<String, String>.from(
-        ModalRoute.of(context)!.settings.arguments as Map);
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            title: Text(
-              matkul['matkul']!,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+    double luminance = Color(_matkul!['color']).computeLuminance();
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isLoading) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tidak dapat kembali saat sedang memuat...'),
             ),
-            backgroundColor: Colors.green[900],
-            leading: Container(
-              margin: const EdgeInsets.only(left: 16),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-          ),
-          body: Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.green,
-                      Colors.lightGreenAccent,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+          );
+          return false;
+        }
+        return true;
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              title: Text(
+                _matkul!['matkul']!,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: ListView(
-                  physics: ClampingScrollPhysics(),
-                  children: [
-                    Container(
-                      alignment: Alignment.topLeft,
-                      height: MediaQuery.of(context).size.height * 0.25,
-                      margin: const EdgeInsets.all(20.0),
-                      padding: EdgeInsets.all(20.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20.0),
-                        color: Colors.white,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            matkul['matkul']!,
-                            style: TextStyle(
-                              fontSize: 24.0,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            matkul['jadwal']!,
-                            style: TextStyle(
-                              fontSize: 16.0,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+              ),
+              backgroundColor: Colors.green[900],
+              leading: Container(
+                margin: const EdgeInsets.only(left: 16),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+            ),
+            body: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.green,
+                        Colors.lightGreenAccent,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    ListView.builder(
-                      padding: EdgeInsets.only(bottom: 20.0),
-                      itemCount: matkul.length,
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        return Container(
-                          margin: EdgeInsets.symmetric(
-                            horizontal: 20.0,
-                            vertical: 8.0,
-                          ),
-                          child: Material(
-                            color: Colors.green.shade100,
-                            elevation: 4.0,
-                            clipBehavior: Clip.hardEdge,
-                            borderRadius: BorderRadius.circular(16.0),
-                            child: ListTile(
-                              title: Text(
-                                'matkul[index]',
-                                style: TextStyle(
-                                  fontSize: 16.0,
-                                  fontWeight: FontWeight.bold,
+                  ),
+                  child: CustomScrollView(
+                    slivers: [
+                      /// 🔹 Header Tetap Bisa Discroll
+                      SliverToBoxAdapter(
+                        child: Column(
+                          children: [
+                            Container(
+                              margin: EdgeInsets.all(20.0),
+                              padding: EdgeInsets.all(20.0),
+                              height: MediaQuery.of(context).size.height * 0.25,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20.0),
+                                border: Border.all(
+                                  color: Colors.black,
+                                  width: 5.0,
+                                ),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(_matkul!['color']).withOpacity(0.5),
+                                    Color(_matkul!['color']),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
                               ),
-                              subtitle: Text('Pertemuan ke-1'),
-                              trailing: Icon(Icons.arrow_forward_ios),
-                              onTap: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/record',
-                                  arguments: matkul['matkul'],
-                                );
-                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _matkul!['matkul']!,
+                                    style: TextStyle(
+                                      fontSize: 24.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: luminance > 0.24
+                                          ? Colors.black
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    _matkul!['jadwal']!,
+                                    style: TextStyle(
+                                      fontSize: 16.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: luminance > 0.24
+                                          ? Colors.black
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 20.0),
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isFirst = true;
+                                  });
+                                  _navigateAndRefresh('/task', _matkul);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 4,
+                                  backgroundColor: Colors.green[900],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8.0),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Tambah Tugas',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 16.0),
+                          ],
+                        ),
+                      ),
+
+                      /// 🔹 Jika Ada Data, Tampilkan List
+                      if (_data != null && _data!.isNotEmpty)
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            childCount: _data!.length + 1,
+                            (context, index) {
+                              if (index == _data!.length) {
+                                return SizedBox(height: 25.0);
+                              }
+                              final key = _data!.keys.toList()[index];
+                              return Container(
+                                margin: EdgeInsets.symmetric(
+                                  horizontal: 20.0,
+                                  vertical: 8.0,
+                                ),
+                                child: Material(
+                                  color: Colors.green.shade100,
+                                  elevation: 4.0,
+                                  clipBehavior: Clip.hardEdge,
+                                  borderRadius: BorderRadius.circular(16.0),
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.only(left: 16.0),
+                                    title: Text(
+                                      'Tugas Baru: ${_data![key]['title']}',
+                                      style: TextStyle(
+                                        fontSize: 16.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      "Terakhir diubah: ${formatTimestamp(_data![key]['timestamp'])}",
+                                      style: TextStyle(
+                                        fontSize: 12.0,
+                                      ),
+                                    ),
+                                    trailing: PopupMenuButton(
+                                      menuPadding: EdgeInsets.zero,
+                                      icon: Icon(Icons.more_vert),
+                                      itemBuilder: (context) {
+                                        return [
+                                          PopupMenuItem(
+                                            value: 'edit',
+                                            child: Text('Edit'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Hapus'),
+                                          ),
+                                        ];
+                                      },
+                                      onSelected: (value) {
+                                        if (value == 'edit') {
+                                          setState(() {
+                                            _isFirst = true;
+                                          });
+                                          _navigateAndRefresh(
+                                              '/task', _data![key]);
+                                        }
+                                        if (value == 'delete') {
+                                          setState(() {
+                                            // _data!.remove(key);
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    onTap: () async {
+                                      final set = await userCheck(key);
+                                      if (_isAdmin) {
+                                        _navigateAndRefresh('/datalog', {
+                                          'matkul': _matkul!['matkul'],
+                                          'uid': key
+                                        });
+                                      } else if (!_isAdmin) {
+                                        if (set != null) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                            content: Text(set.toString()),
+                                          ));
+                                          _navigateAndRefresh('/datalog', {
+                                            'matkul': _matkul!['matkul'],
+                                            'uid': key,
+                                            'postUser': _data![set]['userPost'],
+                                          });
+                                        } else {
+                                          _navigateAndRefresh(
+                                            '/presence',
+                                            {
+                                              'matkul': _matkul!['matkul'],
+                                              'uid': key,
+                                            },
+                                          );
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                bottom: 24.0,
-                right: 24.0,
-                child: IconButton(
-                  onPressed: () {
-                    _loadData();
-                  },
-                  icon: Icon(Icons.add),
-                  color: Colors.black,
-                  iconSize: 32.0,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    padding: EdgeInsets.all(
-                      12.0,
-                    ),
+                        )
+                      else
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Stack(
+                            children: [
+                              _isLoading
+                                  ? Container()
+                                  : Center(
+                                      child: Container(
+                                        margin: EdgeInsets.symmetric(
+                                            horizontal: 50.0),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.calendar_month_rounded,
+                                              size: 100.0,
+                                            ),
+                                            SizedBox(height: 16.0),
+                                            Text(
+                                              'Belum ada tugas ditambahkan',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 8.0),
+                                            Text(
+                                              'Silahkan menambahkan tugas terlebih dahulu untuk diberikan kepada mahasiswa.',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 16.0),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        if (_isLoading)
-          Container(
-            color: Colors.black45,
-            child: Center(
-              child: CircularProgressIndicator(),
+              ],
             ),
           ),
-      ],
+          if (_isLoading)
+            Container(
+              color: Colors.black45,
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

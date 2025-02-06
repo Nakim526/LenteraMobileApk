@@ -9,28 +9,30 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-class RecordPage extends StatefulWidget {
-  const RecordPage({super.key});
+class PresencePage extends StatefulWidget {
+  const PresencePage({super.key});
 
   @override
-  _RecordPageState createState() => _RecordPageState();
+  _PresencePageState createState() => _PresencePageState();
 }
 
-class _RecordPageState extends State<RecordPage> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("uploads");
+class _PresencePageState extends State<PresencePage> {
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("tasks");
   final DatabaseReference _userRef = FirebaseDatabase.instance.ref("users");
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   static const String clientId = "ca88e99d5b919db";
   CameraController? _cameraController;
-  String? _attendance;
-  String? _lesson;
+  String? _presenceState;
+  String? _taskId;
+  String? _matkul;
   String? _location;
   String? _photoPath;
   bool _isProcessing = false;
   bool _isSending = false;
   bool _isCaptured = false;
+  bool _isCamera = false;
   List<CameraDescription>? cameras;
   Map<String, dynamic>? _userData;
 
@@ -41,14 +43,25 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   Future<void> _initializeCameras() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    cameras = await availableCameras();
-    await _checkAndRequestLocationPermission();
-    if (cameras!.isNotEmpty) {
-      _initializeCamera(frontCamera: true);
-    } else {
+    setState(() {
+      _isCamera = true;
+      _isProcessing = true;
+    });
+    try {
+      WidgetsFlutterBinding.ensureInitialized();
+      cameras = await availableCameras();
+      await _checkAndRequestLocationPermission();
+      if (cameras!.isNotEmpty) {
+        await _initializeCamera(frontCamera: true);
+      } else {
+        setState(() {
+          _location = 'Kamera tidak tersedia di perangkat ini.';
+        });
+      }
+    } finally {
       setState(() {
-        _location = 'Kamera tidak tersedia di perangkat ini.';
+        _isCamera = false;
+        _isProcessing = false;
       });
     }
   }
@@ -68,17 +81,10 @@ class _RecordPageState extends State<RecordPage> {
     );
 
     try {
-      setState(() {
-        _isProcessing = true;
-      });
       await _cameraController!.initialize();
     } catch (e) {
       setState(() {
         _location = 'Error kamera: $e';
-      });
-    } finally {
-      setState(() {
-        _isProcessing = false;
       });
     }
   }
@@ -149,8 +155,10 @@ class _RecordPageState extends State<RecordPage> {
       await Geolocator.openLocationSettings();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                'Layanan lokasi tidak aktif. Aktifkan untuk melanjutkan.')),
+          content: Text(
+            'Layanan lokasi tidak aktif. Aktifkan untuk melanjutkan.',
+          ),
+        ),
       );
       return;
     }
@@ -198,10 +206,10 @@ class _RecordPageState extends State<RecordPage> {
             final mapsUrl = 'https://www.google.com/maps?q=$lat,$long';
 
             if (await canLaunch(mapsUrl)) {
-              _location = mapsUrl;
               setState(() {
-                _uploadData();
+                _location = mapsUrl;
               });
+              await _uploadData();
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Tidak dapat membuka peta.')),
@@ -221,30 +229,35 @@ class _RecordPageState extends State<RecordPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Terjadi kesalahan: $e')),
         );
+      } finally {
+        setState(() {
+          _isSending = false;
+        });
       }
     }
   }
 
-  Future<void> saveData(String name, String nim, String attendance,
-      String lesson, String location, String photoUrl) async {
+  Future<void> saveData(String photoUrl) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      DatabaseReference postRef = _dbRef.push();
-      DatabaseReference userRef =
-          _userRef.child('${user.uid}/attendance').push();
-      String postUid = postRef.key!;
-      String userPostUid = userRef.key!;
+      final postRef = _dbRef.child('$_matkul/$_taskId/presences').push();
+      final userRef = _userRef.child('${user.uid}/presences/$_matkul').push();
+      final postUid = postRef.key!;
+      final userPostUid = userRef.key!;
       await postRef.set({
-        "name": name,
-        "nim": nim,
-        "attendance": attendance,
-        "lesson": lesson,
-        "location": location,
+        "name": _nameController.text,
+        "nim": _nimController.text,
+        "presence": _presenceState,
+        "lesson": _matkul,
+        "location": _location,
         "photoUrl": photoUrl,
         "timestamp": ServerValue.timestamp,
-        "uid": postUid,
         "user": user.uid,
-        "post": userPostUid
+        "userPost": userPostUid,
+      });
+      await userRef.set({
+        "taskUid": _taskId,
+        "postUid": postUid,
       });
     }
   }
@@ -280,43 +293,32 @@ class _RecordPageState extends State<RecordPage> {
               return AlertDialog(
                 title: Text("Upload Berhasil"),
                 content: Text(
-                    "Data berhasil disimpan. Silahkan kembali ke halaman utama."),
+                  "Data berhasil disimpan. Silahkan kembali untuk mengecek tugas lainnya.",
+                ),
                 actions: [
                   TextButton(
                     child: Text("OK"),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(context).pop();
-                      saveData(
-                        _nameController.text,
-                        _nimController.text,
-                        _attendance!,
-                        _lesson!,
-                        _location!,
-                        photoUrl,
-                      );
+                      await saveData(photoUrl);
                     },
                   ),
                 ],
               );
             },
           );
-          Navigator.pushReplacementNamed(context, "/home");
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Failed to upload data: $e")),
         );
-      } finally {
-        setState(() {
-          _isSending = false;
-        });
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String matkul = ModalRoute.of(context)!.settings.arguments as String;
+    final matkul = Map.from(ModalRoute.of(context)!.settings.arguments as Map);
     double screenHeight = MediaQuery.of(context).size.height;
     double statusBarHeight = MediaQuery.of(context).padding.top;
     double appBarHeight = kToolbarHeight;
@@ -328,21 +330,22 @@ class _RecordPageState extends State<RecordPage> {
             if (_isSending) {
               _isSending = false;
               showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: Text("Upload Gagal"),
-                      content: Text("Upload dibatalkan. Data gagal disimpan."),
-                      actions: [
-                        TextButton(
-                          child: Text("OK"),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                        ),
-                      ],
-                    );
-                  });
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text("Upload Gagal"),
+                    content: Text("Upload dibatalkan. Data gagal disimpan."),
+                    actions: [
+                      TextButton(
+                        child: Text("OK"),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
             } else {
               _isProcessing = false;
               _photoPath = null;
@@ -448,7 +451,21 @@ class _RecordPageState extends State<RecordPage> {
                           ),
                         )
                       else
-                        Center()
+                        _isCamera
+                            ? Container()
+                            : Container(
+                                height: availableHeight,
+                                child: Center(
+                                  child: Text(
+                                    "Tidak dapat mengakses kamera",
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              )
                     else if (_photoPath != null)
                       Form(
                         key: _formKey,
@@ -460,7 +477,7 @@ class _RecordPageState extends State<RecordPage> {
                                 horizontal: 25.0,
                               ),
                               child: Text(
-                                matkul,
+                                matkul['matkul'],
                                 style: TextStyle(
                                   fontSize: 20,
                                   color: Colors.black,
@@ -518,7 +535,7 @@ class _RecordPageState extends State<RecordPage> {
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 40.0,
+                                horizontal: 25.0,
                                 vertical: 10.0,
                               ),
                               child: Column(
@@ -563,7 +580,7 @@ class _RecordPageState extends State<RecordPage> {
                                             BorderRadius.circular(5.0),
                                       ),
                                     ),
-                                    value: _attendance, // Nilai awal
+                                    value: _presenceState, // Nilai awal
                                     items: [
                                       DropdownMenuItem(
                                         value: "Hadir",
@@ -580,7 +597,7 @@ class _RecordPageState extends State<RecordPage> {
                                     ],
                                     onChanged: (value) {
                                       setState(() {
-                                        _attendance = value;
+                                        _presenceState = value;
                                       });
                                     },
                                     validator: (value) {
@@ -589,37 +606,39 @@ class _RecordPageState extends State<RecordPage> {
                                       }
                                       return null;
                                     },
-                                  )
+                                  ),
+                                  SizedBox(height: 25),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () async {
+                                        setState(() {
+                                          _matkul = matkul['matkul'];
+                                          _taskId = matkul['uid'];
+                                        });
+                                        await _sendData();
+                                        Navigator.pop(context);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        elevation: 4,
+                                        backgroundColor: Colors.green[900],
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(4.0),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Kirim',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: 25),
                                 ],
                               ),
                             ),
-                            SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                _sendData();
-                                setState(() {
-                                  _lesson = matkul;
-                                });
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                minimumSize: Size(125, 50),
-                                elevation: 5,
-                                shadowColor: Colors.grey,
-                              ),
-                              child: Text(
-                                'Kirim',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 20),
                           ],
                         ),
                       ),
