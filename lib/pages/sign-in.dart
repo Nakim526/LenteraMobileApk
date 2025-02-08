@@ -17,10 +17,24 @@ class _SignInPageState extends State<SignInPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  Map<String, String> matkul = {
+    'Pemrograman Web 1': 'Senin, 08.00-09.40',
+    'Struktur Data': 'Selasa, 09.45-11.25',
+    'Basis Data': 'Rabu, 12.50-14.30',
+    'Pemrograman Terstruktur': 'Kamis, 14.35-16.15',
+    'Algoritma dan Pemrograman': 'Jum\'at, 08.00-09.40',
+    'Pemrograman Berorientasi Objek': 'Senin, 09.45-11.25',
+    'Fisika Terapan': 'Selasa, 12.50-14.30',
+    'Elektronika Digital': 'Rabu, 14.35-16.15',
+    'Pengenalan Teknologi Informasi dan Ilmu Komputer': 'Kamis, 08.00-09.40',
+    'Sistem Tertanam': 'Jum\'at, 09.45-11.25',
+    'Sistem Operasi Komputer': 'Senin, 12.50-14.30',
+  };
 
   Future<void> saveUserDataToDatabase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      bool admin = false;
       final userRef = FirebaseDatabase.instance.ref('users/${user.uid}');
 
       final snapshot = await userRef.get();
@@ -33,6 +47,7 @@ class _SignInPageState extends State<SignInPage> {
       }
 
       if (user.displayName != null) {
+        admin = true;
         await userRef.update({
           'name': user.displayName,
           'role': 'admin',
@@ -42,6 +57,63 @@ class _SignInPageState extends State<SignInPage> {
           'role': 'user',
         });
       }
+
+      for (var entry in matkul.entries) {
+        getProgress(entry.key, entry.value, admin);
+      }
+    }
+  }
+
+  Future<void> getProgress(String? matkul, String? jadwal, bool? admin) async {
+    double currentProgress = 0;
+    double totalProgress = 30;
+    double progress = 0;
+    int total = 0;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userRef =
+          FirebaseDatabase.instance.ref('users/${user.uid}/$matkul');
+      final taskRef = FirebaseDatabase.instance.ref('tasks/$matkul');
+      final snapshot = await taskRef.get();
+      if (snapshot.exists) {
+        final outerMap = Map.from(snapshot.value as Map);
+        for (var key in outerMap.keys) {
+          if (outerMap[key]['type'] == 'Tugas' ||
+              outerMap[key]['type'] == 'Kehadiran') {
+            total += 1;
+            if (admin!) {
+              progress += 1;
+            } else {
+              final userSnapshot = await userRef.child('presences').get();
+              if (userSnapshot.exists) {
+                final userProgress = Map.from(userSnapshot.value as Map);
+                for (var uid in userProgress.keys) {
+                  if (userProgress[uid] is Map) {
+                    if (userProgress[uid]['taskUid'] == key) {
+                      if (userProgress[uid]['status'] == 'Selesai') {
+                        progress += 1;
+                      } else if (userProgress[uid]['status'] == 'Terlambat') {
+                        progress += 0.5;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        currentProgress = progress;
+        totalProgress = admin! ? 30 : total.toDouble();
+      }
+      double percentage = currentProgress / totalProgress;
+      int percentText = (percentage * 100).toInt();
+      await userRef.update({
+        'progress': progress,
+        'total': admin! ? 30 : total,
+        'percentage': percentage,
+        'percentText': percentText,
+        'jadwal': jadwal,
+      });
     }
   }
 

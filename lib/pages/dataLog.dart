@@ -15,7 +15,6 @@ class _DataLogPageState extends State<DataLogPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("tasks");
   List<String> _selectedItems = [];
   List<String> _uidList = [];
-  final List<dynamic> _temp = [];
   Map<dynamic, dynamic>? _data;
   String? _sort;
   String? keyId;
@@ -63,8 +62,8 @@ class _DataLogPageState extends State<DataLogPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final userRef = FirebaseDatabase.instance.ref('users/${user.uid}');
-        final role = await userRef.child('role').get();
+        final roleRef = FirebaseDatabase.instance.ref('users/${user.uid}');
+        final role = await roleRef.child('role').get();
 
         if (role.exists && role.value == 'admin') {
           setState(() {
@@ -108,7 +107,10 @@ class _DataLogPageState extends State<DataLogPage> {
               });
             }
           } else if (_sort == 'baru' || _sort == 'lama') {
-            final snapshot = await _dbRef.orderByChild('timestamp').get();
+            final snapshot = await _dbRef
+                .child('$_matkul/$_taskId/presences')
+                .orderByChild('timestamp')
+                .get();
             if (snapshot.exists) {
               // Konversi snapshot menjadi Map<String, dynamic>
               final rawData = Map<String, dynamic>.from(snapshot.value as Map);
@@ -141,8 +143,9 @@ class _DataLogPageState extends State<DataLogPage> {
           }
         } else if (role.exists && role.value == 'user') {
           if (_postUser != null) {
-            final postUser =
-                await userRef.child('presences/$_matkul/$_postUser').get();
+            final userRef = FirebaseDatabase.instance
+                .ref('users/${user.uid}/$_matkul/presences/$_postUser');
+            final postUser = await userRef.get();
             final data = Map.from(postUser.value as Map);
             String postUid = data['postUid'];
             final snapshot =
@@ -170,13 +173,7 @@ class _DataLogPageState extends State<DataLogPage> {
               );
             }
           } else {
-            // ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            //   content: Text(_postUser.toString()),
-            // ));
-            // Navigator.pushReplacementNamed(context, '/presence', arguments: {
-            //   'matkul': _matkul,
-            //   'uid': _taskId,
-            // });
+            Navigator.of(context).pop();
           }
         } else {
           setState(() {
@@ -198,20 +195,22 @@ class _DataLogPageState extends State<DataLogPage> {
 
   Future<void> deleteData() async {
     final user = FirebaseAuth.instance.currentUser;
-    String? uid = keyId;
     try {
       if (user != null) {
-        if (_selectedItems.isEmpty) {
+        if (_selectedItems.isEmpty && keyId == null) {
           return;
         } else {
-          DatabaseReference postUser = FirebaseDatabase.instance.ref('users');
+          setState(() {
+            _isLoading = true;
+          });
+          final postUser = FirebaseDatabase.instance.ref('users');
           await showDialog<void>(
             context: context,
             barrierDismissible: false,
             builder: (BuildContext context) {
               return AlertDialog(
                 title: Text(
-                  keyId == null
+                  keyId != null
                       ? 'Hapus Riwayat'
                       : '${_selectedItems.length} item dipilih',
                 ),
@@ -220,29 +219,42 @@ class _DataLogPageState extends State<DataLogPage> {
                   TextButton(
                     child: const Text('Batal'),
                     onPressed: () {
+                      setState(() {
+                        _isLoading = false;
+                      });
                       Navigator.pop(context);
                     },
                   ),
                   TextButton(
                     child: const Text('Hapus'),
-                    onPressed: () {
-                      if (uid != null) {
-                        _dbRef.child(keyId!).remove();
-                      } else {
-                        for (int i = 0; i < _selectedItems.length; i++) {
-                          uid = _selectedItems[i];
-                          String postId = _data![uid]['post'];
-                          String userId = _data![uid]['user'];
-                          postUser.child('$userId/presence/$postId').remove();
-                          _dbRef.child(uid!).remove();
-                        }
+                    onPressed: () async {
+                      if (keyId != null) {
+                        setState(() {
+                          _selectedItems.clear();
+                          _selectedItems.add(keyId!);
+                          _postUser = null;
+                          keyId = null;
+                        });
                       }
-                      setState(() {
-                        _isOpen = false;
-                        _isSelect = false;
-                        _loadData();
-                      });
+                      for (int i = 0; i < _selectedItems.length; i++) {
+                        String uid = _selectedItems[i];
+                        String postId = _data![uid]['userPost'];
+                        String userId = _data![uid]['user'];
+                        postUser
+                            .child('$userId/presences/$_matkul/$postId')
+                            .remove();
+                        _dbRef
+                            .child('$_matkul/$_taskId/presences/$uid')
+                            .remove();
+                      }
+                      if (_isAdmin) {
+                        setState(() {
+                          _isOpen = false;
+                          _isSelect = false;
+                        });
+                      }
                       Navigator.pop(context);
+                      _loadData();
                     },
                   ),
                 ],
@@ -264,13 +276,18 @@ class _DataLogPageState extends State<DataLogPage> {
       onWillPop: () async {
         if (!_isAdmin) {
           return true;
-        } else if (_isOpen) {
+        } else if (_isLoading) {
+          setState(() {
+            _isLoading = false;
+          });
+          return false;
+        } else if (_isOpen && _isAdmin) {
           setState(() {
             _isOpen = false;
             keyId = null;
           });
           return false;
-        } else if (_isSelect) {
+        } else if (_isSelect && _isAdmin) {
           setState(() {
             _isSelect = false;
           });
@@ -295,12 +312,16 @@ class _DataLogPageState extends State<DataLogPage> {
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () {
-                if (_isOpen) {
+                if (_isLoading) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                } else if (_isOpen && _isAdmin) {
                   setState(() {
                     _isOpen = false;
                     keyId = null;
                   });
-                } else if (_isSelect) {
+                } else if (_isSelect && _isAdmin) {
                   setState(() {
                     _isSelect = false;
                   });
@@ -529,7 +550,7 @@ class _DataLogPageState extends State<DataLogPage> {
                             title: Text(
                               _data![key]['name'],
                               style: TextStyle(
-                                fontSize: 16.0,
+                                fontSize: 15.0,
                                 fontWeight: FontWeight.bold,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -552,7 +573,6 @@ class _DataLogPageState extends State<DataLogPage> {
                             onLongPress: () {
                               setState(() {
                                 _isSelect = true;
-                                _selectedItems.clear();
                                 _selectedItems.add(key);
                               });
                             },

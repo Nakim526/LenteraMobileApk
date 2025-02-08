@@ -240,8 +240,16 @@ class _PresencePageState extends State<PresencePage> {
   Future<void> saveData(String photoUrl) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      String status = "Selesai";
+      final deadline = await _dbRef.child('$_matkul/$_taskId/deadline').get();
+      if (deadline.exists) {
+        final deadlineTimestamp = deadline.value as int;
+        if (deadlineTimestamp < DateTime.now().millisecondsSinceEpoch) {
+          status = "Terlambat";
+        }
+      }
       final postRef = _dbRef.child('$_matkul/$_taskId/presences').push();
-      final userRef = _userRef.child('${user.uid}/presences/$_matkul').push();
+      final userRef = _userRef.child('${user.uid}/$_matkul/presences').push();
       final postUid = postRef.key!;
       final userPostUid = userRef.key!;
       await postRef.set({
@@ -258,6 +266,7 @@ class _PresencePageState extends State<PresencePage> {
       await userRef.set({
         "taskUid": _taskId,
         "postUid": postUid,
+        "status": status,
       });
     }
   }

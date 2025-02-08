@@ -628,7 +628,7 @@ class _NotesPageState extends State<NotesPage> {
                               title: Text(
                                 _data![key]['title'],
                                 style: TextStyle(
-                                  fontSize: 16.0,
+                                  fontSize: 15.0,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 overflow: TextOverflow.ellipsis,

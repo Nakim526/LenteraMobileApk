@@ -8,6 +8,10 @@ import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:open_file/open_file.dart';
 
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key});
@@ -21,14 +25,18 @@ class _TaskPageState extends State<TaskPage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final List<File> _selectedFiles = [];
   final List<Map<String, dynamic>> _uploadedFiles = [];
-  int? _selectedDateTime;
+  final List<File> _selectedFiles = [];
+  Map<dynamic, dynamic>? _task;
   DateTime? deadlineDate;
   bool _isLoading = false;
   bool _isFirst = true;
-  File? _file;
+  bool _isAdmin = true;
+  String? _category;
   String? _matkul;
+  String? _taskId;
+  File? _file;
+  int? _selectedDateTime;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [drive.DriveApi.driveFileScope],
   );
@@ -58,8 +66,52 @@ class _TaskPageState extends State<TaskPage> {
         _matkul = matkul['matkul'];
       });
 
-      syncData();
+      if (matkul['id'] != null) {
+        setState(() {
+          _task = matkul;
+          _taskId = matkul['id'];
+        });
+        syncData();
+      } else if (matkul['users'] != null) {
+        setState(() {
+          _isAdmin = false;
+        });
+      }
       return;
+    }
+  }
+
+  Future<String?> downloadFile(String url, String fileName) async {
+    try {
+      // Minta izin penyimpanan (hanya untuk Android)
+      if (Platform.isAndroid) {
+        var status = await Permission.manageExternalStorage.request();
+        if (!status.isGranted) {
+          print('Status izin penyimpanan: ${status.toString()}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Status: ${status.toString()}'),
+            ),
+          );
+          return null;
+        }
+      }
+
+      Directory? directory = await getExternalStorageDirectory();
+      String filePath = '${directory!.path}/$fileName';
+
+      // Unduh file menggunakan dio
+      Dio dio = Dio();
+      await dio.download(url, filePath);
+
+      return filePath; // Kembalikan path file yang diunduh
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengunduh file: $e'),
+        ),
+      );
+      return null;
     }
   }
 
@@ -68,7 +120,25 @@ class _TaskPageState extends State<TaskPage> {
       _isLoading = true;
     });
 
-    try {} finally {
+    try {
+      setState(() {
+        _titleController.text = _task!['title'];
+        _descriptionController.text = _task!['description'];
+        _category = _task!['type'];
+        _selectedDateTime = _task!['deadline'];
+      });
+      for (int i = 0; i < _task!['files'].length; i++) {
+        String fileUrl = _task!['files'][i]['downloadUrl'];
+        String fileName = _task!['files'][i]['name'];
+
+        String? downloadedFilePath = await downloadFile(fileUrl, fileName);
+        if (downloadedFilePath != null) {
+          setState(() {
+            _selectedFiles.add(File(downloadedFilePath));
+          });
+        }
+      }
+    } finally {
       setState(() {
         _isLoading = false;
       });
@@ -186,77 +256,87 @@ class _TaskPageState extends State<TaskPage> {
     };
   }
 
-  Future<void> sendToDatabase() async {
-    String? task = _dbRef.child(_matkul!).push().key;
-    await _dbRef.child('$_matkul/$task!').set({
-      'title': _titleController.text,
-      'description': _descriptionController.text,
-      'files': _uploadedFiles,
-      'deadline': _selectedDateTime,
-      'timestamp': ServerValue.timestamp,
-      'isCompleted': false,
-      'id': task,
-    });
+  Future<void> sendToDatabase(String? description) async {
+    if (_taskId != null) {
+      await _dbRef.child('$_matkul/$_taskId').update({
+        'title': _titleController.text.trim(),
+        'type': _category,
+        'description': description,
+        'files': _uploadedFiles,
+        'deadline': _selectedDateTime,
+      });
+    } else {
+      String? task = _dbRef.child(_matkul!).push().key;
+      await _dbRef.child('$_matkul/$task!').set({
+        'title': _titleController.text.trim(),
+        'type': _category,
+        'description': description,
+        'files': _uploadedFiles,
+        'deadline': _selectedDateTime,
+        'timestamp': ServerValue.timestamp,
+        'isCompleted': false,
+        'id': task,
+      });
+    }
   }
 
   Future<void> uploadNewTask() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        if (_selectedFiles.isNotEmpty) {
-          for (int i = 0; i < _selectedFiles.length; i++) {
-            File file = _selectedFiles[i];
-            String? fileId = await uploadFile(file);
-            if (fileId != null) {
-              final fileLink = await getDriveFileLink(fileId);
-              String? viewLink = fileLink["viewLink"];
-              String? downloadLink = fileLink["downloadLink"];
-              if (viewLink != null && downloadLink != null) {
-                setState(() {
-                  _uploadedFiles.add({
-                    'viewUrl': viewLink,
-                    'downloadUrl': downloadLink,
-                    'name': file.path.split('/').last, // Simpan nama file
-                  });
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      if (_selectedFiles.isNotEmpty) {
+        for (int i = 0; i < _selectedFiles.length; i++) {
+          File file = _selectedFiles[i];
+          String? fileId = await uploadFile(file);
+          if (fileId != null) {
+            final fileLink = await getDriveFileLink(fileId);
+            String? viewLink = fileLink["viewLink"];
+            String? downloadLink = fileLink["downloadLink"];
+            if (viewLink != null && downloadLink != null) {
+              setState(() {
+                _uploadedFiles.add({
+                  'viewUrl': viewLink,
+                  'downloadUrl': downloadLink,
+                  'name': file.path.split('/').last,
                 });
-              }
+              });
             }
           }
         }
-        await sendToDatabase();
-
-        await showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text("Upload Berhasil"),
-              content: Text(
-                "Tugas baru berhasil ditambahkan.",
-              ),
-              actions: [
-                TextButton(
-                  child: Text("OK"),
-                  onPressed: () {
-                    setState(() {
-                      _formKey.currentState!.reset();
-                      _selectedFiles.clear();
-                      _uploadedFiles.clear();
-                      _file = null;
-                    });
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
       }
+      await sendToDatabase(_descriptionController.text.trim());
+
+      await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text("Upload Berhasil"),
+            content: Text(
+              "Tugas baru berhasil ditambahkan.",
+            ),
+            actions: [
+              TextButton(
+                child: Text("OK"),
+                onPressed: () {
+                  setState(() {
+                    _formKey.currentState!.reset();
+                    _selectedDateTime = null;
+                    _selectedFiles.clear();
+                    _uploadedFiles.clear();
+                    _file = null;
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -301,96 +381,167 @@ class _TaskPageState extends State<TaskPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Tugas',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.green[900],
-        leading: Container(
-          margin: const EdgeInsets.only(left: 16),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-        ),
-      ),
-      body: Stack(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isLoading) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sedang mengunduh data, silahkan tunggu...'),
+            ),
+          );
+          return false;
+        }
+        return true;
+      },
+      child: Stack(
         children: [
-          ListView(
-            children: [
-              Form(
-                key: _formKey,
-                child: Container(
-                  padding: const EdgeInsets.all(25),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _titleController,
-                        decoration: InputDecoration(
-                          label: RichText(
-                            text: TextSpan(
-                              text: 'Tugas',
-                              style: TextStyle(
+          Scaffold(
+            appBar: AppBar(
+              title: Text(
+                _isAdmin ? 'Tugas' : 'Posting',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              backgroundColor: Colors.green[900],
+              leading: Container(
+                margin: const EdgeInsets.only(left: 16),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+            ),
+            body: ListView(
+              children: [
+                Form(
+                  key: _formKey,
+                  child: Container(
+                    padding: const EdgeInsets.all(25),
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _titleController,
+                          decoration: InputDecoration(
+                            label: RichText(
+                              text: TextSpan(
+                                text: 'Judul',
+                                style: TextStyle(
                                   color: Colors.grey[900],
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400),
-                              children: [
-                                TextSpan(
-                                  text: ' *',
-                                  style: TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
                                 ),
-                              ],
+                                children: [
+                                  TextSpan(
+                                    text: ' *',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            border: const OutlineInputBorder(),
                           ),
-                          border: const OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Tugas harus diisi';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 20),
-                      TextFormField(
-                        controller: _descriptionController,
-                        scrollPadding: const EdgeInsets.all(16),
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          alignLabelWithHint: true,
-                          labelText: 'Deskripsi',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4.0),
-                          border: Border.all(color: Colors.grey[600]!),
-                        ),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            pickFile();
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a title';
+                            }
+                            return null;
                           },
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            backgroundColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(0),
+                        ),
+                        SizedBox(height: 20),
+                        _isAdmin
+                            ? Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: DropdownButtonFormField(
+                                      decoration: InputDecoration(
+                                        labelText: "Kategori",
+                                        labelStyle: TextStyle(
+                                          color: Colors.grey[900],
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(4.0),
+                                        ),
+                                      ),
+                                      value: _category,
+                                      items: [
+                                        DropdownMenuItem(
+                                          value: "Pengumuman",
+                                          child: Text(
+                                            "Pengumuman",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: "Kehadiran",
+                                          child: Text(
+                                            "Kehadiran",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: "Tugas",
+                                          child: Text(
+                                            "Tugas",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _category = value;
+                                        });
+                                      },
+                                      validator: (value) {
+                                        if (value == null) {
+                                          return 'Please select an option';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(height: 20),
+                                ],
+                              )
+                            : SizedBox(height: 0),
+                        TextFormField(
+                          controller: _descriptionController,
+                          maxLines: 6,
+                          decoration: InputDecoration(
+                            alignLabelWithHint: true,
+                            labelText: 'Deskripsi',
+                            labelStyle: TextStyle(
+                              color: Colors.grey[900],
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.w400,
                             ),
-                            padding: const EdgeInsets.all(0),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4.0),
+                            border: Border.all(color: Colors.grey[600]!),
                           ),
                           child: Column(
                             children: [
@@ -417,16 +568,24 @@ class _TaskPageState extends State<TaskPage> {
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
-                                              child: Text(
-                                                _selectedFiles[index]
-                                                    .path
-                                                    .split('/')
-                                                    .last,
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 14,
+                                              child: GestureDetector(
+                                                onTap: () async {
+                                                  await OpenFile.open(
+                                                    _selectedFiles[index].path,
+                                                  );
+                                                },
+                                                child: Text(
+                                                  _selectedFiles[index]
+                                                      .path
+                                                      .split('/')
+                                                      .last,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 14,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
-                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
@@ -500,108 +659,107 @@ class _TaskPageState extends State<TaskPage> {
                             ],
                           ),
                         ),
-                      ),
-                      SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4.0),
-                          border: Border.all(color: Colors.grey[600]!),
-                        ),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _selectDateTime(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            backgroundColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(0),
-                            ),
-                            padding: const EdgeInsets.all(0),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.all(8.0),
-                                padding: EdgeInsets.zero,
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey[600]!),
-                                ),
-                                child: IconButton(
-                                  onPressed: () {
-                                    _selectDateTime(context);
-                                  },
-                                  icon: Icon(
-                                    Icons.calendar_month,
-                                    size: 20,
-                                    color: Colors.green[900],
-                                  ),
-                                  style: IconButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.zero,
+                        SizedBox(height: 20),
+                        _isAdmin
+                            ? Column(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(4.0),
+                                      border:
+                                          Border.all(color: Colors.grey[600]!),
                                     ),
-                                    elevation: 0,
-                                  ),
-                                  constraints: BoxConstraints(),
-                                ),
-                              ),
-                              Container(
-                                margin: EdgeInsets.only(
-                                  left: 4,
-                                  right: 12,
-                                ),
-                                child: Text(
-                                  _selectedDateTime != null
-                                      ? formatTimestamp(_selectedDateTime!)
-                                      : 'Batas Akhir',
-                                  style: _selectedDateTime != null
-                                      ? TextStyle(
-                                          color: Colors.black,
-                                        )
-                                      : TextStyle(
-                                          color: Colors.grey[800],
-                                          fontWeight: FontWeight.w400,
-                                          fontSize: 16,
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.all(8.0),
+                                          padding: EdgeInsets.zero,
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                                color: Colors.grey[600]!),
+                                          ),
+                                          child: IconButton(
+                                            onPressed: () {
+                                              _selectDateTime(context);
+                                            },
+                                            icon: Icon(
+                                              Icons.calendar_month,
+                                              size: 20,
+                                              color: Colors.green[900],
+                                            ),
+                                            style: IconButton.styleFrom(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.zero,
+                                              ),
+                                              elevation: 0,
+                                            ),
+                                            constraints: BoxConstraints(),
+                                          ),
                                         ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                        Container(
+                                          margin: EdgeInsets.only(
+                                            left: 4,
+                                            right: 12,
+                                          ),
+                                          child: Text(
+                                            _selectedDateTime != null
+                                                ? formatTimestamp(
+                                                    _selectedDateTime!)
+                                                : 'Batas Waktu',
+                                            style: _selectedDateTime != null
+                                                ? TextStyle(
+                                                    color: Colors.black,
+                                                    fontWeight: FontWeight.w400,
+                                                    fontSize: 16,
+                                                  )
+                                                : TextStyle(
+                                                    color: Colors.grey[800],
+                                                    fontWeight: FontWeight.w400,
+                                                    fontSize: 16,
+                                                  ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(height: 20),
+                                ],
+                              )
+                            : SizedBox(height: 0),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (_formKey.currentState!.validate()) {
+                                await uploadNewTask();
+                                Navigator.pop(context);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              elevation: 4,
+                              backgroundColor: Colors.green[900],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4.0),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            await uploadNewTask();
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            elevation: 4,
-                            backgroundColor: Colors.green[900],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4.0),
                             ),
-                          ),
-                          child: Text(
-                            'Tambah Tugas',
-                            style: TextStyle(
-                              color: Colors.white,
+                            child: Text(
+                              _isAdmin ? 'Tambah Tugas' : 'Tambah Postingan',
+                              style: TextStyle(
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           if (_isLoading)
             Container(

@@ -34,6 +34,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      builder: (context, child) {
+        return GestureDetector(
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          child: child,
+        );
+      },
       debugShowCheckedModeBanner: false,
       initialRoute: isLoggedIn ? '/home' : '/sign-in',
       routes: {
