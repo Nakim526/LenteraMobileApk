@@ -241,7 +241,7 @@ class _DataLogPageState extends State<DataLogPage> {
                         String postId = _data![uid]['userPost'];
                         String userId = _data![uid]['user'];
                         postUser
-                            .child('$userId/presences/$_matkul/$postId')
+                            .child('$userId/$_matkul/presences/$postId')
                             .remove();
                         _dbRef
                             .child('$_matkul/$_taskId/presences/$uid')
@@ -555,20 +555,11 @@ class _DataLogPageState extends State<DataLogPage> {
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _data![key]['lesson'],
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  formatTimestamp(
-                                    _data![key]['timestamp'],
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                            subtitle: Text(
+                              formatTimestamp(
+                                _data![key]['timestamp'],
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                             onLongPress: () {
                               setState(() {

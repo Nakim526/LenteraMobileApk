@@ -66,7 +66,7 @@ class _SignInPageState extends State<SignInPage> {
 
   Future<void> getProgress(String? matkul, String? jadwal, bool? admin) async {
     double currentProgress = 0;
-    double totalProgress = 30;
+    double totalProgress = 0.1;
     double progress = 0;
     int total = 0;
     final user = FirebaseAuth.instance.currentUser;
@@ -83,7 +83,7 @@ class _SignInPageState extends State<SignInPage> {
             total += 1;
             if (admin!) {
               progress += 1;
-            } else {
+            } else if (!admin) {
               final userSnapshot = await userRef.child('presences').get();
               if (userSnapshot.exists) {
                 final userProgress = Map.from(userSnapshot.value as Map);
@@ -103,7 +103,7 @@ class _SignInPageState extends State<SignInPage> {
           }
         }
         currentProgress = progress;
-        totalProgress = admin! ? 30 : total.toDouble();
+        totalProgress = admin! ? 30 : total.toDouble() + 0.01;
       }
       double percentage = currentProgress / totalProgress;
       int percentText = (percentage * 100).toInt();

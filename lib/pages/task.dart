@@ -59,20 +59,21 @@ class _TaskPageState extends State<TaskPage> {
 
     if (_isFirst) {
       // Pindahkan akses ModalRoute.of(context) ke sini
-      final matkul = ModalRoute.of(context)!.settings.arguments as Map;
+      final data = ModalRoute.of(context)!.settings.arguments as Map;
 
       setState(() {
         _isFirst = false;
-        _matkul = matkul['matkul'];
+        _matkul = data['matkul'];
       });
 
-      if (matkul['id'] != null) {
+      if (data.keys.contains('key')) {
         setState(() {
-          _task = matkul;
-          _taskId = matkul['id'];
+          _task = data['data'];
+          _taskId = data['data']['id'];
         });
         syncData();
-      } else if (matkul['users'] != null) {
+      }
+      if (data['users'] != null) {
         setState(() {
           _isAdmin = false;
         });
@@ -127,15 +128,17 @@ class _TaskPageState extends State<TaskPage> {
         _category = _task!['type'];
         _selectedDateTime = _task!['deadline'];
       });
-      for (int i = 0; i < _task!['files'].length; i++) {
-        String fileUrl = _task!['files'][i]['downloadUrl'];
-        String fileName = _task!['files'][i]['name'];
+      if (_task!['files'] != null) {
+        for (int i = 0; i < _task!['files'].length; i++) {
+          String fileUrl = _task!['files'][i]['downloadUrl'];
+          String fileName = _task!['files'][i]['name'];
 
-        String? downloadedFilePath = await downloadFile(fileUrl, fileName);
-        if (downloadedFilePath != null) {
-          setState(() {
-            _selectedFiles.add(File(downloadedFilePath));
-          });
+          String? downloadedFilePath = await downloadFile(fileUrl, fileName);
+          if (downloadedFilePath != null) {
+            setState(() {
+              _selectedFiles.add(File(downloadedFilePath));
+            });
+          }
         }
       }
     } finally {
@@ -264,17 +267,28 @@ class _TaskPageState extends State<TaskPage> {
         'description': description,
         'files': _uploadedFiles,
         'deadline': _selectedDateTime,
+        'timestamp': ServerValue.timestamp,
       });
-    } else {
-      String? task = _dbRef.child(_matkul!).push().key;
-      await _dbRef.child('$_matkul/$task!').set({
+      return;
+    }
+    String? task = _dbRef.child(_matkul!).push().key;
+    if (_isAdmin) {
+      await _dbRef.child('$_matkul/$task').set({
         'title': _titleController.text.trim(),
         'type': _category,
         'description': description,
         'files': _uploadedFiles,
         'deadline': _selectedDateTime,
         'timestamp': ServerValue.timestamp,
-        'isCompleted': false,
+        'id': task,
+      });
+    } else {
+      await _dbRef.child('$_matkul/$task').set({
+        'title': _titleController.text.trim(),
+        'type': 'Postingan',
+        'description': description,
+        'files': _uploadedFiles,
+        'timestamp': ServerValue.timestamp,
         'id': task,
       });
     }

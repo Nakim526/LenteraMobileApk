@@ -462,7 +462,7 @@ class _PresencePageState extends State<PresencePage> {
                       else
                         _isCamera
                             ? Container()
-                            : Container(
+                            : SizedBox(
                                 height: availableHeight,
                                 child: Center(
                                   child: Text(

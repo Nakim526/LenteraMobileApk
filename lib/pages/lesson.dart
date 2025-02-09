@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,8 @@ class _LessonPageState extends State<LessonPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('tasks');
   Map<dynamic, dynamic>? _data;
   Map<dynamic, dynamic>? _matkul;
+  Map<dynamic, dynamic>? _status;
+  Map<dynamic, dynamic>? _type;
   double? currentProgress = 0.0;
   double? totalProgress = 30.0;
   String? keyId;
@@ -60,9 +64,8 @@ class _LessonPageState extends State<LessonPage> {
           setState(() {
             _isAdmin = true;
           });
-        } else if (role.exists && role.value == 'user') {
-          await getProgress();
         }
+        await getProgress();
         final DatabaseReference taskRef = _dbRef.child(_matkul!['matkul']);
         final snapshot = await taskRef.orderByChild('timestamp').get();
         if (snapshot.exists) {
@@ -92,8 +95,10 @@ class _LessonPageState extends State<LessonPage> {
   }
 
   Future<void> getProgress() async {
+    Map status = {};
+    Map type = {};
     double progress = 0;
-    int total = 0;
+    double total = 0;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userRef = FirebaseDatabase.instance
@@ -119,16 +124,30 @@ class _LessonPageState extends State<LessonPage> {
                       } else if (userProgress[uid]['status'] == 'Terlambat') {
                         progress += 0.5;
                       }
+                      setState(() {
+                        status.addAll({
+                          userProgress[uid]['taskUid']: userProgress[uid]
+                              ['status'],
+                        });
+                      });
                     }
                   }
                 }
               }
             }
           }
+          setState(() {
+            type.addAll({
+              key: outerMap[key]['type'],
+            });
+          });
         }
         setState(() {
+          _type = type;
+          _status = status;
+          if (total == 0) total = 0.01;
           currentProgress = progress;
-          totalProgress = _isAdmin ? 30 : total.toDouble();
+          totalProgress = _isAdmin ? 30 : total;
         });
       }
       double percentage = currentProgress! / totalProgress!;
@@ -149,6 +168,7 @@ class _LessonPageState extends State<LessonPage> {
   }
 
   String formatTimestamp(int timestamp) {
+    if (timestamp == 0) return 'Tidak ada batas waktu';
     DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     return DateFormat('dd MMM yyyy, HH:mm').format(date);
   }
@@ -162,15 +182,44 @@ class _LessonPageState extends State<LessonPage> {
         final outerMap = Map.from(snapshot.value as Map);
         for (var key in outerMap.keys) {
           if (outerMap[key]['user'] == user.uid) {
-            setState(() {
-              _data = outerMap;
-            });
             return key;
           }
         }
       }
     }
     return null;
+  }
+
+  IconData getIconType(String type) {
+    switch (type) {
+      case 'Tugas':
+        return Icons.assignment;
+      case 'Kehadiran':
+        return Icons.event;
+      case 'Postingan':
+        return Icons.announcement_outlined;
+      default:
+        return Icons.announcement;
+    }
+  }
+
+  IconData getIconStatus(String status) {
+    switch (status) {
+      case 'Selesai':
+        return Icons.check_circle_outline_rounded;
+      case 'Terlambat':
+        return Icons.warning_amber_rounded;
+      default:
+        return Icons.dangerous_outlined;
+    }
+  }
+
+  Future<void> deleteTask(String idKey) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userRef = _dbRef.child('${user.uid}/${_matkul!['matkul']}');
+    }
+    await _dbRef.child('${_matkul!['matkul']}/$idKey').remove();
   }
 
   @override
@@ -264,12 +313,13 @@ class _LessonPageState extends State<LessonPage> {
                                       ),
                                       gradient: LinearGradient(
                                         colors: [
-                                          Color(_matkul!['color'])
-                                              .withOpacity(0.5),
+                                          luminance < 0.24
+                                              ? Colors.grey[700]!
+                                              : Colors.grey[300]!,
                                           Color(_matkul!['color']),
                                         ],
                                         begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
+                                        end: Alignment.center,
                                       ),
                                     ),
                                     child: Column(
@@ -368,7 +418,7 @@ class _LessonPageState extends State<LessonPage> {
                                         SizedBox(height: 16.0),
                                       ],
                                     )
-                                  else
+                                  else if (!_isLoading)
                                     Column(
                                       children: [
                                         Container(
@@ -378,11 +428,12 @@ class _LessonPageState extends State<LessonPage> {
                                           width: double.infinity,
                                           child: ElevatedButton(
                                             onPressed: () {
-                                              final user = FirebaseAuth
-                                                  .instance.currentUser;
                                               _navigateAndRefresh(
                                                 '/task',
-                                                {'users': user!.uid},
+                                                {
+                                                  'matkul': _matkul!['matkul'],
+                                                  'users': true,
+                                                },
                                               );
                                             },
                                             style: ElevatedButton.styleFrom(
@@ -452,10 +503,19 @@ class _LessonPageState extends State<LessonPage> {
                                         borderRadius:
                                             BorderRadius.circular(16.0),
                                         child: ListTile(
-                                          contentPadding:
-                                              EdgeInsets.only(left: 16.0),
+                                          contentPadding: EdgeInsets.only(
+                                            left: 16.0,
+                                            right: 8.0,
+                                          ),
+                                          leading: Icon(
+                                            getIconType(
+                                              _type?[key] ?? '',
+                                            ),
+                                            size: 25,
+                                            color: Colors.green[900],
+                                          ),
                                           title: Text(
-                                            '${_data![key]['type']}: ${_data![key]['title']}',
+                                            _data![key]['title'],
                                             style: TextStyle(
                                               fontSize: 15.0,
                                               fontWeight: FontWeight.bold,
@@ -463,7 +523,7 @@ class _LessonPageState extends State<LessonPage> {
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                           subtitle: Text(
-                                            "Terakhir diubah: ${formatTimestamp(_data![key]['timestamp'])}",
+                                            "Diubah: ${formatTimestamp(_data![key]['timestamp'])}",
                                             style: TextStyle(
                                               fontSize: 12.0,
                                             ),
@@ -490,7 +550,12 @@ class _LessonPageState extends State<LessonPage> {
                                                       if (value == 'edit') {
                                                         _navigateAndRefresh(
                                                           '/task',
-                                                          _data![key],
+                                                          {
+                                                            'matkul': _matkul![
+                                                                'matkul'],
+                                                            'key': key,
+                                                            'data': _data![key]
+                                                          },
                                                         );
                                                       }
                                                       if (value == 'delete') {
@@ -501,44 +566,94 @@ class _LessonPageState extends State<LessonPage> {
                                                     },
                                                   ),
                                                 )
-                                              : Container(
-                                                  margin: EdgeInsets.only(
-                                                      right: 16.0),
-                                                  child: Icon(
-                                                    Icons.arrow_forward_ios,
-                                                  ),
-                                                ),
+                                              : _type?[key] == 'Postingan'
+                                                  ? PopupMenuButton(
+                                                      itemBuilder: (context) {
+                                                        return [
+                                                          PopupMenuItem(
+                                                            value: 'edit',
+                                                            child: Text('Edit'),
+                                                          ),
+                                                          PopupMenuItem(
+                                                            value: 'delete',
+                                                            child:
+                                                                Text('Hapus'),
+                                                          ),
+                                                        ];
+                                                      },
+                                                      onSelected: (value) {
+                                                        if (value == 'edit') {
+                                                          _navigateAndRefresh(
+                                                            '/task',
+                                                            {
+                                                              'matkul':
+                                                                  _matkul![
+                                                                      'matkul'],
+                                                              'key': key,
+                                                              'data':
+                                                                  _data![key],
+                                                              'users': true
+                                                            },
+                                                          );
+                                                        }
+                                                        if (value == 'delete') {
+                                                          setState(() {
+                                                            // _data!.remove(key);
+                                                          });
+                                                        }
+                                                      },
+                                                    )
+                                                  : Container(
+                                                      margin: EdgeInsets.only(
+                                                          right: 12.0),
+                                                      child: Icon(
+                                                        getIconStatus(
+                                                          _status?[key] ?? '',
+                                                        ),
+                                                        color: _status?[key] ==
+                                                                'Selesai'
+                                                            ? Colors.green[900]
+                                                            : _status?[key] ==
+                                                                    'Terlambat'
+                                                                ? Colors
+                                                                    .amber[900]
+                                                                : Colors.redAccent[
+                                                                    700],
+                                                        size: 24.0,
+                                                      ),
+                                                    ),
                                           onTap: () async {
-                                            // setState(() {
-                                            //   keyId = key;
-                                            //   _isOpen = true;
-                                            // });
-                                            final set = await userCheck(key);
-                                            if (_isAdmin) {
-                                              _navigateAndRefresh('/datalog', {
-                                                'matkul': _matkul!['matkul'],
-                                                'uid': key
-                                              });
-                                            } else if (!_isAdmin) {
-                                              if (set != null) {
-                                                _navigateAndRefresh(
-                                                    '/datalog', {
-                                                  'matkul': _matkul!['matkul'],
-                                                  'uid': key,
-                                                  'postUser': _data![set]
-                                                      ['userPost'],
-                                                });
-                                              } else {
-                                                _navigateAndRefresh(
-                                                  '/presence',
-                                                  {
-                                                    'matkul':
-                                                        _matkul!['matkul'],
-                                                    'uid': key,
-                                                  },
-                                                );
-                                              }
-                                            }
+                                            setState(() {
+                                              keyId = key;
+                                              _isOpen = true;
+                                            });
+                                            // final set = await userCheck(key);
+                                            // if (_isAdmin) {
+                                            //   _navigateAndRefresh('/datalog', {
+                                            //     'matkul': _matkul!['matkul'],
+                                            //     'uid': key
+                                            //   });
+                                            // } else if (!_isAdmin) {
+                                            //   if (set != null) {
+                                            //     _navigateAndRefresh(
+                                            //         '/datalog', {
+                                            //       'matkul': _matkul!['matkul'],
+                                            //       'uid': key,
+                                            //       'postUser': _data![key]
+                                            //               ['presences'][set]
+                                            //           ['userPost'],
+                                            //     });
+                                            //   } else {
+                                            //     _navigateAndRefresh(
+                                            //       '/presence',
+                                            //       {
+                                            //         'matkul':
+                                            //             _matkul!['matkul'],
+                                            //         'uid': key,
+                                            //       },
+                                            //     );
+                                            //   }
+                                            // }
                                           },
                                         ),
                                       ),
@@ -597,13 +712,16 @@ class _LessonPageState extends State<LessonPage> {
                       )
                     : Stack(
                         children: [
-                          if (_data![keyId]['type'] == 'Tugas')
-                            ListView(
+                          // if (_data![keyId]['type'] == 'Tugas')
+                          Container(
+                            margin: EdgeInsets.all(20),
+                            child: ListView(
                               children: [
                                 IntrinsicHeight(
                                   child: Container(
-                                    margin: EdgeInsets.all(16.0),
                                     padding: EdgeInsets.all(8.0),
+                                    width: double.infinity,
+                                    height: min(500, 200),
                                     decoration: BoxDecoration(
                                       border: Border(
                                         bottom: BorderSide(
@@ -612,8 +730,10 @@ class _LessonPageState extends State<LessonPage> {
                                         ),
                                       ),
                                     ),
-                                    alignment: Alignment.topLeft,
+                                    // alignment: Alignment.topLeft,
                                     child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           _data![keyId]['title'],
@@ -623,26 +743,33 @@ class _LessonPageState extends State<LessonPage> {
                                             color: Colors.black,
                                           ),
                                         ),
-                                        if (_data![keyId]['description'] !=
-                                            null)
-                                          Column(
-                                            children: [
-                                              SizedBox(height: 8.0),
-                                              Text(
-                                                _data![keyId]['description'],
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.black,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                        _data![keyId]['description'] != ''
+                                            ? Column(
+                                                children: [
+                                                  SizedBox(height: 8.0),
+                                                  Text(
+                                                    _data![keyId]
+                                                        ['description'],
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : SizedBox(height: 0),
                                       ],
                                     ),
                                   ),
                                 ),
+                                Container(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text(
+                                      'Batas Waktu: ${formatTimestamp(_data![keyId]['deadline'] ?? 0)}'),
+                                )
                               ],
                             ),
+                          ),
                         ],
                       ),
               ],
