@@ -12,12 +12,11 @@ import 'pages/notes.dart';
 import 'pages/lesson.dart';
 import 'pages/chat.dart';
 import 'pages/task.dart';
+import 'pages/answer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Cek status login
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -55,6 +54,7 @@ class MyApp extends StatelessWidget {
         '/lesson': (context) => LessonPage(),
         '/chat': (context) => ChatPage(),
         '/task': (context) => TaskPage(),
+        '/answer': (context) => AnswerPage(),
       },
     );
   }

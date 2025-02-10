@@ -82,7 +82,7 @@ class _ProfilePageState extends State<ProfilePage> {
       try {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
-          String photoUrl = '';
+          String? photoUrl;
           if (_photoPath != null) {
             photoUrl = await uploadImage(File(_photoPath!));
           }
@@ -239,9 +239,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 onPressed: () {
                   if (_isEditing) {
                     setState(() {
-                      _nameController.clear();
-                      _nimController.clear();
-                      _addressController.clear();
+                      _nameController.text = _userData!['name'] ?? '';
+                      _nimController.text = _userData!['nim'] ?? '';
+                      _addressController.text = _userData!['address'] ?? '';
                     });
                   } else {
                     setState(() {
@@ -474,8 +474,25 @@ class _ProfilePageState extends State<ProfilePage> {
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: _photoPath != null
-                              ? Stack(
+                          child: _photoPath == null
+                              ? _userData!['photo'] == null
+                                  ? IconButton(
+                                      onPressed: () {
+                                        pickFile();
+                                      },
+                                      icon: Icon(
+                                        Icons.person,
+                                        size: profileHeight * 0.7,
+                                        color: Colors.white,
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        shape: CircleBorder(),
+                                        padding: EdgeInsets.all(
+                                            profileHeight * 0.15),
+                                      ),
+                                    )
+                                  : Image.network(_userData!['photo'])
+                              : Stack(
                                   children: [
                                     ClipOval(
                                       child: Image.file(
@@ -506,21 +523,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                       ),
                                     ),
                                   ],
-                                )
-                              : IconButton(
-                                  onPressed: () {
-                                    pickFile();
-                                  },
-                                  icon: Icon(
-                                    Icons.person,
-                                    size: profileHeight * 0.7,
-                                    color: Colors.white,
-                                  ),
-                                  style: IconButton.styleFrom(
-                                    shape: CircleBorder(),
-                                    padding:
-                                        EdgeInsets.all(profileHeight * 0.15),
-                                  ),
                                 ),
                         ),
                       ),

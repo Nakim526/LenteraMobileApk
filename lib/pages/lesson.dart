@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -25,11 +23,15 @@ class _LessonPageState extends State<LessonPage> {
   bool _isAdmin = false;
   bool _isLoading = false;
   bool _isFirst = true;
-  bool _isOpen = false;
 
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override
@@ -113,9 +115,30 @@ class _LessonPageState extends State<LessonPage> {
             if (_isAdmin) {
               progress += 1;
             } else {
-              final userSnapshot = await userRef.child('presences').get();
-              if (userSnapshot.exists) {
-                final userProgress = Map.from(userSnapshot.value as Map);
+              final assignments = await userRef.child('assignments').get();
+              if (assignments.exists) {
+                final userProgress = Map.from(assignments.value as Map);
+                for (var uid in userProgress.keys) {
+                  if (userProgress[uid] is Map) {
+                    if (userProgress[uid]['taskUid'] == key) {
+                      if (userProgress[uid]['status'] == 'Selesai') {
+                        progress += 1;
+                      } else if (userProgress[uid]['status'] == 'Terlambat') {
+                        progress += 0.5;
+                      }
+                      setState(() {
+                        status.addAll({
+                          userProgress[uid]['taskUid']: userProgress[uid]
+                              ['status'],
+                        });
+                      });
+                    }
+                  }
+                }
+              }
+              final presences = await userRef.child('presences').get();
+              if (presences.exists) {
+                final userProgress = Map.from(presences.value as Map);
                 for (var uid in userProgress.keys) {
                   if (userProgress[uid] is Map) {
                     if (userProgress[uid]['taskUid'] == key) {
@@ -214,10 +237,91 @@ class _LessonPageState extends State<LessonPage> {
     }
   }
 
+  Icon getFileIcon(String mimeType, bool isAnswer) {
+    if (mimeType.startsWith("image/")) {
+      return Icon(
+        Icons.image,
+        size: isAnswer ? 20 : 32,
+        color: Colors.blue,
+      );
+    } else if (mimeType.startsWith("video/")) {
+      return Icon(
+        Icons.video_file,
+        size: isAnswer ? 20 : 32,
+        color: Colors.orange,
+      );
+    } else if (mimeType.startsWith("audio/")) {
+      return Icon(
+        Icons.audiotrack,
+        size: isAnswer ? 20 : 32,
+        color: Colors.green,
+      );
+    } else if (mimeType == "application/pdf") {
+      return Icon(
+        Icons.picture_as_pdf,
+        size: isAnswer ? 20 : 32,
+        color: Colors.red,
+      );
+    } else if (mimeType.contains("word")) {
+      return Icon(
+        Icons.description,
+        size: isAnswer ? 20 : 32,
+        color: Colors.blue,
+      );
+    } else if (mimeType.contains("spreadsheet")) {
+      return Icon(
+        Icons.table_chart,
+        size: isAnswer ? 20 : 32,
+        color: Colors.green,
+      );
+    } else if (mimeType.contains("presentation")) {
+      return Icon(
+        Icons.slideshow,
+        size: isAnswer ? 20 : 32,
+        color: Colors.orange,
+      );
+    } else if (mimeType.contains("zip") || mimeType.contains("rar")) {
+      return Icon(
+        Icons.archive,
+        size: isAnswer ? 20 : 32,
+        color: Colors.grey,
+      );
+    } else if (mimeType == 'text/plain') {
+      return Icon(
+        Icons.text_snippet,
+        size: isAnswer ? 20 : 32,
+        color: Colors.blueGrey,
+      );
+    } else if (mimeType == 'application/json') {
+      return Icon(
+        Icons.code,
+        size: isAnswer ? 20 : 32,
+        color: Colors.deepPurple,
+      );
+    } else {
+      return Icon(
+        Icons.insert_drive_file,
+        size: isAnswer ? 20 : 32,
+        color: Colors.grey,
+      );
+    }
+  }
+
   Future<void> deleteTask(String idKey) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final userRef = _dbRef.child('${user.uid}/${_matkul!['matkul']}');
+      final snapshot =
+          await _dbRef.child('${user.uid}/${_matkul!['matkul']}').get();
+      if (snapshot.exists) {
+        final outerMap = Map.from(snapshot.value as Map);
+        for (var key in outerMap.keys) {
+          if (outerMap[key]['taskUid'] == idKey) {
+            await _dbRef
+                .child('${user.uid}/${_matkul!['matkul']}/$key')
+                .remove();
+          }
+        }
+      }
     }
     await _dbRef.child('${_matkul!['matkul']}/$idKey').remove();
   }
@@ -235,11 +339,6 @@ class _LessonPageState extends State<LessonPage> {
               content: Text('Tidak dapat kembali saat sedang memuat...'),
             ),
           );
-          return false;
-        } else if (_isOpen) {
-          setState(() {
-            _isOpen = false;
-          });
           return false;
         }
         return true;
@@ -268,10 +367,6 @@ class _LessonPageState extends State<LessonPage> {
                               Text('Tidak dapat kembali saat sedang memuat...'),
                         ),
                       );
-                    } else if (_isOpen) {
-                      setState(() {
-                        _isOpen = false;
-                      });
                     } else {
                       Navigator.pop(context);
                     }
@@ -281,497 +376,423 @@ class _LessonPageState extends State<LessonPage> {
             ),
             body: Stack(
               children: [
-                !_isOpen
-                    ? Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green,
-                              Colors.lightGreenAccent,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: CustomScrollView(
-                          slivers: [
-                            /// 🔹 Header Tetap Bisa Discroll
-                            SliverToBoxAdapter(
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.green,
+                        Colors.lightGreenAccent,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: CustomScrollView(
+                    slivers: [
+                      /// 🔹 Header Tetap Bisa Discroll
+                      SliverToBoxAdapter(
+                        child: Column(
+                          children: [
+                            Container(
+                              margin: EdgeInsets.all(20.0),
+                              padding: EdgeInsets.all(20.0),
+                              height: MediaQuery.of(context).size.height * 0.25,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20.0),
+                                border: Border.all(
+                                  color: Colors.black,
+                                  width: 5.0,
+                                ),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    luminance < 0.24
+                                        ? Colors.grey[700]!
+                                        : Colors.grey[300]!,
+                                    Color(_matkul!['color']),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.center,
+                                ),
+                              ),
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    margin: EdgeInsets.all(20.0),
-                                    padding: EdgeInsets.all(20.0),
-                                    height: MediaQuery.of(context).size.height *
-                                        0.25,
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20.0),
-                                      border: Border.all(
-                                        color: Colors.black,
-                                        width: 5.0,
-                                      ),
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          luminance < 0.24
-                                              ? Colors.grey[700]!
-                                              : Colors.grey[300]!,
-                                          Color(_matkul!['color']),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.center,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _matkul!['matkul']!,
-                                          style: TextStyle(
-                                            fontSize: 24.0,
-                                            fontWeight: FontWeight.bold,
-                                            color: luminance > 0.24
-                                                ? Colors.black
-                                                : Colors.white,
-                                          ),
-                                        ),
-                                        Text(
-                                          _matkul!['jadwal']!,
-                                          style: TextStyle(
-                                            fontSize: 16.0,
-                                            fontWeight: FontWeight.bold,
-                                            color: luminance > 0.24
-                                                ? Colors.black
-                                                : Colors.white,
-                                          ),
-                                        ),
-                                        Expanded(child: Container()),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: LinearProgressIndicator(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                  10.0,
-                                                ),
-                                                value: percentage,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                        Color>(
-                                                  luminance > 0.24
-                                                      ? Colors.black
-                                                      : Colors.white,
-                                                ),
-                                                minHeight: 5.0,
-                                                backgroundColor:
-                                                    luminance > 0.24
-                                                        ? Colors.white
-                                                        : Colors.black,
-                                              ),
-                                            ),
-                                            SizedBox(width: 10.0),
-                                            Text(
-                                              '$percentText%',
-                                              style: TextStyle(
-                                                fontSize: 12.0,
-                                                fontWeight: FontWeight.bold,
-                                                color: luminance > 0.24
-                                                    ? Colors.black
-                                                    : Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                  Text(
+                                    _matkul!['matkul']!,
+                                    style: TextStyle(
+                                      fontSize: 24.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: luminance > 0.24
+                                          ? Colors.black
+                                          : Colors.white,
                                     ),
                                   ),
-                                  if (_isAdmin)
-                                    Column(
-                                      children: [
-                                        Container(
-                                          margin: EdgeInsets.symmetric(
-                                              horizontal: 20.0),
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            onPressed: () {
-                                              _navigateAndRefresh(
-                                                  '/task', _matkul);
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              elevation: 4,
-                                              backgroundColor:
-                                                  Colors.green[900],
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8.0),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              'Tambah Tugas',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(height: 16.0),
-                                      ],
-                                    )
-                                  else if (!_isLoading)
-                                    Column(
-                                      children: [
-                                        Container(
-                                          margin: EdgeInsets.symmetric(
-                                            horizontal: 20.0,
-                                          ),
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            onPressed: () {
-                                              _navigateAndRefresh(
-                                                '/task',
-                                                {
-                                                  'matkul': _matkul!['matkul'],
-                                                  'users': true,
-                                                },
-                                              );
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              elevation: 4,
-                                              backgroundColor:
-                                                  Colors.green[900],
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8.0),
-                                              ),
-                                              padding: EdgeInsets.symmetric(
-                                                vertical: 20.0,
-                                                horizontal: 16.0,
-                                              ),
-                                              alignment: Alignment.centerLeft,
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.post_add_rounded,
-                                                  size: 20.0,
-                                                  color: Colors.white,
-                                                ),
-                                                SizedBox(width: 10.0),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Posting sesuatu kepada seluruh peserta',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      fontSize: 12.0,
-                                                    ),
-                                                    textAlign: TextAlign.left,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(height: 16.0),
-                                      ],
+                                  Text(
+                                    _matkul!['jadwal']!,
+                                    style: TextStyle(
+                                      fontSize: 16.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: luminance > 0.24
+                                          ? Colors.black
+                                          : Colors.white,
                                     ),
+                                  ),
+                                  Expanded(child: Container()),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: LinearProgressIndicator(
+                                          borderRadius: BorderRadius.circular(
+                                            10.0,
+                                          ),
+                                          value: percentage,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            luminance > 0.24
+                                                ? Colors.black
+                                                : Colors.white,
+                                          ),
+                                          minHeight: 5.0,
+                                          backgroundColor: luminance > 0.24
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10.0),
+                                      Text(
+                                        '$percentText%',
+                                        style: TextStyle(
+                                          fontSize: 12.0,
+                                          fontWeight: FontWeight.bold,
+                                          color: luminance > 0.24
+                                              ? Colors.black
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
-
-                            /// 🔹 Jika Ada Data, Tampilkan List
-                            if (_data != null && _data!.isNotEmpty)
-                              SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  childCount: _data!.length + 1,
-                                  (context, index) {
-                                    if (index == _data!.length) {
-                                      return SizedBox(height: 25.0);
-                                    }
-                                    final key = _data!.keys.toList()[index];
-                                    return Container(
-                                      margin: EdgeInsets.symmetric(
-                                        horizontal: 20.0,
-                                        vertical: 8.0,
-                                      ),
-                                      child: Material(
-                                        color: Colors.green.shade100,
-                                        elevation: 4.0,
-                                        clipBehavior: Clip.hardEdge,
-                                        borderRadius:
-                                            BorderRadius.circular(16.0),
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.only(
-                                            left: 16.0,
-                                            right: 8.0,
-                                          ),
-                                          leading: Icon(
-                                            getIconType(
-                                              _type?[key] ?? '',
-                                            ),
-                                            size: 25,
-                                            color: Colors.green[900],
-                                          ),
-                                          title: Text(
-                                            _data![key]['title'],
-                                            style: TextStyle(
-                                              fontSize: 15.0,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          subtitle: Text(
-                                            "Diubah: ${formatTimestamp(_data![key]['timestamp'])}",
-                                            style: TextStyle(
-                                              fontSize: 12.0,
-                                            ),
-                                          ),
-                                          trailing: _isAdmin
-                                              ? Container(
-                                                  child: PopupMenuButton(
-                                                    menuPadding:
-                                                        EdgeInsets.zero,
-                                                    icon: Icon(Icons.more_vert),
-                                                    itemBuilder: (context) {
-                                                      return [
-                                                        PopupMenuItem(
-                                                          value: 'edit',
-                                                          child: Text('Edit'),
-                                                        ),
-                                                        PopupMenuItem(
-                                                          value: 'delete',
-                                                          child: Text('Hapus'),
-                                                        ),
-                                                      ];
-                                                    },
-                                                    onSelected: (value) {
-                                                      if (value == 'edit') {
-                                                        _navigateAndRefresh(
-                                                          '/task',
-                                                          {
-                                                            'matkul': _matkul![
-                                                                'matkul'],
-                                                            'key': key,
-                                                            'data': _data![key]
-                                                          },
-                                                        );
-                                                      }
-                                                      if (value == 'delete') {
-                                                        setState(() {
-                                                          // _data!.remove(key);
-                                                        });
-                                                      }
-                                                    },
-                                                  ),
-                                                )
-                                              : _type?[key] == 'Postingan'
-                                                  ? PopupMenuButton(
-                                                      itemBuilder: (context) {
-                                                        return [
-                                                          PopupMenuItem(
-                                                            value: 'edit',
-                                                            child: Text('Edit'),
-                                                          ),
-                                                          PopupMenuItem(
-                                                            value: 'delete',
-                                                            child:
-                                                                Text('Hapus'),
-                                                          ),
-                                                        ];
-                                                      },
-                                                      onSelected: (value) {
-                                                        if (value == 'edit') {
-                                                          _navigateAndRefresh(
-                                                            '/task',
-                                                            {
-                                                              'matkul':
-                                                                  _matkul![
-                                                                      'matkul'],
-                                                              'key': key,
-                                                              'data':
-                                                                  _data![key],
-                                                              'users': true
-                                                            },
-                                                          );
-                                                        }
-                                                        if (value == 'delete') {
-                                                          setState(() {
-                                                            // _data!.remove(key);
-                                                          });
-                                                        }
-                                                      },
-                                                    )
-                                                  : Container(
-                                                      margin: EdgeInsets.only(
-                                                          right: 12.0),
-                                                      child: Icon(
-                                                        getIconStatus(
-                                                          _status?[key] ?? '',
-                                                        ),
-                                                        color: _status?[key] ==
-                                                                'Selesai'
-                                                            ? Colors.green[900]
-                                                            : _status?[key] ==
-                                                                    'Terlambat'
-                                                                ? Colors
-                                                                    .amber[900]
-                                                                : Colors.redAccent[
-                                                                    700],
-                                                        size: 24.0,
-                                                      ),
-                                                    ),
-                                          onTap: () async {
-                                            setState(() {
-                                              keyId = key;
-                                              _isOpen = true;
-                                            });
-                                            // final set = await userCheck(key);
-                                            // if (_isAdmin) {
-                                            //   _navigateAndRefresh('/datalog', {
-                                            //     'matkul': _matkul!['matkul'],
-                                            //     'uid': key
-                                            //   });
-                                            // } else if (!_isAdmin) {
-                                            //   if (set != null) {
-                                            //     _navigateAndRefresh(
-                                            //         '/datalog', {
-                                            //       'matkul': _matkul!['matkul'],
-                                            //       'uid': key,
-                                            //       'postUser': _data![key]
-                                            //               ['presences'][set]
-                                            //           ['userPost'],
-                                            //     });
-                                            //   } else {
-                                            //     _navigateAndRefresh(
-                                            //       '/presence',
-                                            //       {
-                                            //         'matkul':
-                                            //             _matkul!['matkul'],
-                                            //         'uid': key,
-                                            //       },
-                                            //     );
-                                            //   }
-                                            // }
-                                          },
+                            if (_isAdmin)
+                              Column(
+                                children: [
+                                  Container(
+                                    margin:
+                                        EdgeInsets.symmetric(horizontal: 20.0),
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        _navigateAndRefresh('/task', _matkul);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        elevation: 4,
+                                        backgroundColor: Colors.green[900],
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8.0),
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
+                                      child: Text(
+                                        'Tambah Tugas',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: 16.0),
+                                ],
                               )
-                            else
-                              SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: Stack(
-                                  children: [
-                                    _isLoading
-                                        ? Container()
-                                        : Center(
-                                            child: Container(
-                                              margin: EdgeInsets.symmetric(
-                                                  horizontal: 50.0),
-                                              child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(
-                                                    Icons
-                                                        .calendar_month_rounded,
-                                                    size: 100.0,
-                                                  ),
-                                                  SizedBox(height: 16.0),
-                                                  Text(
-                                                    'Belum ada tugas ditambahkan',
-                                                    style: TextStyle(
-                                                      fontSize: 24,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                  SizedBox(height: 8.0),
-                                                  Text(
-                                                    'Silahkan menambahkan tugas terlebih dahulu untuk diberikan kepada mahasiswa.',
-                                                    style: TextStyle(
-                                                      fontSize: 16,
-                                                    ),
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                  SizedBox(height: 16.0),
-                                                ],
+                            else if (!_isLoading)
+                              Column(
+                                children: [
+                                  Container(
+                                    margin: EdgeInsets.symmetric(
+                                      horizontal: 20.0,
+                                    ),
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        _navigateAndRefresh(
+                                          '/task',
+                                          {
+                                            'matkul': _matkul!['matkul'],
+                                            'users': true,
+                                          },
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        elevation: 4,
+                                        backgroundColor: Colors.green[900],
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8.0),
+                                        ),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 20.0,
+                                          horizontal: 16.0,
+                                        ),
+                                        alignment: Alignment.centerLeft,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.post_add_rounded,
+                                            size: 20.0,
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(width: 10.0),
+                                          Expanded(
+                                            child: Text(
+                                              'Posting sesuatu kepada seluruh peserta',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 12.0,
                                               ),
+                                              textAlign: TextAlign.left,
                                             ),
                                           ),
-                                  ],
-                                ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: 16.0),
+                                ],
                               ),
                           ],
                         ),
-                      )
-                    : Stack(
-                        children: [
-                          // if (_data![keyId]['type'] == 'Tugas')
-                          Container(
-                            margin: EdgeInsets.all(20),
-                            child: ListView(
-                              children: [
-                                IntrinsicHeight(
-                                  child: Container(
-                                    padding: EdgeInsets.all(8.0),
-                                    width: double.infinity,
-                                    height: min(500, 200),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          width: 2.0,
-                                          color: Colors.black12,
+                      ),
+
+                      /// 🔹 Jika Ada Data, Tampilkan List
+                      if (_data != null && _data!.isNotEmpty)
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            childCount: _data!.length + 1,
+                            (context, index) {
+                              if (index == _data!.length) {
+                                return SizedBox(height: 25.0);
+                              }
+                              final key = _data!.keys.toList()[index];
+                              return Container(
+                                margin: EdgeInsets.symmetric(
+                                  horizontal: 20.0,
+                                  vertical: 8.0,
+                                ),
+                                child: Material(
+                                  color: Colors.green.shade100,
+                                  elevation: 4.0,
+                                  clipBehavior: Clip.hardEdge,
+                                  borderRadius: BorderRadius.circular(16.0),
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.only(
+                                      left: 16.0,
+                                      right: 8.0,
+                                    ),
+                                    leading: Icon(
+                                      getIconType(
+                                        _type?[key] ?? '',
+                                      ),
+                                      size: 25,
+                                      color: Colors.green[900],
+                                    ),
+                                    title: Text(
+                                      _data![key]['title'],
+                                      style: TextStyle(
+                                        fontSize: 15.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      "Diubah: ${formatTimestamp(_data![key]['timestamp'])}",
+                                      style: TextStyle(
+                                        fontSize: 12.0,
+                                      ),
+                                    ),
+                                    trailing: _isAdmin
+                                        ? Container(
+                                            child: PopupMenuButton(
+                                              menuPadding: EdgeInsets.zero,
+                                              icon: Icon(Icons.more_vert),
+                                              itemBuilder: (context) {
+                                                return [
+                                                  PopupMenuItem(
+                                                    value: 'edit',
+                                                    child: Text('Edit'),
+                                                  ),
+                                                  PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Text('Hapus'),
+                                                  ),
+                                                ];
+                                              },
+                                              onSelected: (value) {
+                                                if (value == 'edit') {
+                                                  _navigateAndRefresh(
+                                                    '/task',
+                                                    {
+                                                      'matkul':
+                                                          _matkul!['matkul'],
+                                                      'key': key,
+                                                      'data': _data![key]
+                                                    },
+                                                  );
+                                                }
+                                                if (value == 'delete') {
+                                                  setState(() {
+                                                    // _data!.remove(key);
+                                                  });
+                                                }
+                                              },
+                                            ),
+                                          )
+                                        : _type?[key] == 'Postingan'
+                                            ? PopupMenuButton(
+                                                itemBuilder: (context) {
+                                                  return [
+                                                    PopupMenuItem(
+                                                      value: 'edit',
+                                                      child: Text('Edit'),
+                                                    ),
+                                                    PopupMenuItem(
+                                                      value: 'delete',
+                                                      child: Text('Hapus'),
+                                                    ),
+                                                  ];
+                                                },
+                                                onSelected: (value) {
+                                                  if (value == 'edit') {
+                                                    _navigateAndRefresh(
+                                                      '/task',
+                                                      {
+                                                        'matkul':
+                                                            _matkul!['matkul'],
+                                                        'key': key,
+                                                        'data': _data![key],
+                                                        'users': true
+                                                      },
+                                                    );
+                                                  }
+                                                  if (value == 'delete') {
+                                                    setState(() {
+                                                      // _data!.remove(key);
+                                                    });
+                                                  }
+                                                },
+                                              )
+                                            : Container(
+                                                margin: EdgeInsets.only(
+                                                    right: 12.0),
+                                                child: Icon(
+                                                  getIconStatus(
+                                                    _status?[key] ?? '',
+                                                  ),
+                                                  color: _status?[key] ==
+                                                          'Selesai'
+                                                      ? Colors.green[900]
+                                                      : _status?[key] ==
+                                                              'Terlambat'
+                                                          ? Colors.amber[900]
+                                                          : Colors
+                                                              .redAccent[700],
+                                                  size: 24.0,
+                                                ),
+                                              ),
+                                    onTap: () async {
+                                      // setState(() {
+                                      //   appbar = _data![key]['type'];
+                                      //   keyId = key;
+                                      //   _isOpen = true;
+                                      // });
+                                      _navigateAndRefresh('/answer', {
+                                        'key': key,
+                                        'name': _matkul!['matkul'],
+                                        'data': _data![key],
+                                      });
+                                      // final set = await userCheck(key);
+                                      if (_isAdmin) {
+                                        _navigateAndRefresh('/datalog', {
+                                          'matkul': _matkul!['matkul'],
+                                          'uid': key
+                                        });
+                                        // } else if (!_isAdmin) {
+                                        //   if (set != null) {
+                                        //     _navigateAndRefresh(
+                                        //         '/datalog', {
+                                        //       'matkul': _matkul!['matkul'],
+                                        //       'uid': key,
+                                        //       'postUser': _data![key]
+                                        //               ['presences'][set]
+                                        //           ['userPost'],
+                                        //     });
+                                        //   } else {
+                                        //     _navigateAndRefresh(
+                                        //       '/presence',
+                                        //       {
+                                        //         'matkul':
+                                        //             _matkul!['matkul'],
+                                        //         'uid': key,
+                                        //       },
+                                        //     );
+                                        //   }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      else
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Stack(
+                            children: [
+                              _isLoading
+                                  ? Container()
+                                  : Center(
+                                      child: Container(
+                                        margin: EdgeInsets.symmetric(
+                                            horizontal: 50.0),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.calendar_month_rounded,
+                                              size: 100.0,
+                                            ),
+                                            SizedBox(height: 16.0),
+                                            Text(
+                                              'Belum ada tugas ditambahkan',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 8.0),
+                                            Text(
+                                              'Silahkan menambahkan tugas terlebih dahulu untuk diberikan kepada mahasiswa.',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 16.0),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                    // alignment: Alignment.topLeft,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _data![keyId]['title'],
-                                          style: TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                        _data![keyId]['description'] != ''
-                                            ? Column(
-                                                children: [
-                                                  SizedBox(height: 8.0),
-                                                  Text(
-                                                    _data![keyId]
-                                                        ['description'],
-                                                    style: TextStyle(
-                                                      fontSize: 16,
-                                                      color: Colors.black,
-                                                    ),
-                                                  ),
-                                                ],
-                                              )
-                                            : SizedBox(height: 0),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text(
-                                      'Batas Waktu: ${formatTimestamp(_data![keyId]['deadline'] ?? 0)}'),
-                                )
-                              ],
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

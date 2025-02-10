@@ -59,7 +59,7 @@ class _SignInPageState extends State<SignInPage> {
       }
 
       for (var entry in matkul.entries) {
-        getProgress(entry.key, entry.value, admin);
+        await getProgress(entry.key, entry.value, admin);
       }
     }
   }

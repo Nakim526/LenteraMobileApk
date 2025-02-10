@@ -16,8 +16,10 @@ class _DataLogPageState extends State<DataLogPage> {
   List<String> _selectedItems = [];
   List<String> _uidList = [];
   Map<dynamic, dynamic>? _data;
-  String? _sort;
   String? keyId;
+  String? _sort;
+  String? _type;
+  String? _titile;
   String? _matkul;
   String? _taskId;
   String? _postUser;
@@ -47,6 +49,8 @@ class _DataLogPageState extends State<DataLogPage> {
         _matkul = matkul['matkul'];
         _taskId = matkul['uid'];
         _postUser = matkul['postUser'];
+        _type = matkul['type'];
+        _titile = matkul['title'];
       });
 
       _loadData();
@@ -71,7 +75,7 @@ class _DataLogPageState extends State<DataLogPage> {
           });
           if (_sort == 'asc' || _sort == 'desc') {
             final snapshot = await _dbRef
-                .child('$_matkul/$_taskId/presences')
+                .child('$_matkul/$_taskId/$_type')
                 .orderByChild('name')
                 .get();
             if (snapshot.exists) {
@@ -108,7 +112,7 @@ class _DataLogPageState extends State<DataLogPage> {
             }
           } else if (_sort == 'baru' || _sort == 'lama') {
             final snapshot = await _dbRef
-                .child('$_matkul/$_taskId/presences')
+                .child('$_matkul/$_taskId/$_type')
                 .orderByChild('timestamp')
                 .get();
             if (snapshot.exists) {
@@ -144,33 +148,18 @@ class _DataLogPageState extends State<DataLogPage> {
         } else if (role.exists && role.value == 'user') {
           if (_postUser != null) {
             final userRef = FirebaseDatabase.instance
-                .ref('users/${user.uid}/$_matkul/presences/$_postUser');
+                .ref('users/${user.uid}/$_matkul/$_type/$_postUser');
             final postUser = await userRef.get();
             final data = Map.from(postUser.value as Map);
             String postUid = data['postUid'];
             final snapshot =
-                await _dbRef.child('$_matkul/$_taskId/presences').get();
+                await _dbRef.child('$_matkul/$_taskId/$_type').get();
             if (snapshot.exists) {
-              await showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text('Pemberitahuan'),
-                  content: Text('Anda sudah mengisi presensi ini.'),
-                  actions: [
-                    TextButton(
-                      child: Text('OK'),
-                      onPressed: () {
-                        setState(() {
-                          _isOpen = true;
-                          _data = Map.from(snapshot.value as Map);
-                          keyId = postUid;
-                        });
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ],
-                ),
-              );
+              setState(() {
+                _isOpen = true;
+                _data = Map.from(snapshot.value as Map);
+                keyId = postUid;
+              });
             }
           } else {
             Navigator.of(context).pop();
@@ -241,11 +230,9 @@ class _DataLogPageState extends State<DataLogPage> {
                         String postId = _data![uid]['userPost'];
                         String userId = _data![uid]['user'];
                         postUser
-                            .child('$userId/$_matkul/presences/$postId')
+                            .child('$userId/$_matkul/$_type/$postId')
                             .remove();
-                        _dbRef
-                            .child('$_matkul/$_taskId/presences/$uid')
-                            .remove();
+                        _dbRef.child('$_matkul/$_taskId/$_type/$uid').remove();
                       }
                       if (_isAdmin) {
                         setState(() {
@@ -611,47 +598,106 @@ class _DataLogPageState extends State<DataLogPage> {
                     padding: EdgeInsets.all(20.0),
                     child: Column(
                       children: [
-                        if (_isProcessing)
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.4,
-                            child: Center(
-                              child: CircularProgressIndicator(),
-                            ),
+                        if (_type == 'presences')
+                          Stack(
+                            children: [
+                              if (_isProcessing)
+                                SizedBox(
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.4,
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                              Container(
+                                height:
+                                    MediaQuery.of(context).size.height * 0.4,
+                                margin: EdgeInsets.only(bottom: 10.0),
+                                child: Image.network(
+                                  _data![keyId]['photoUrl'],
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                    try {
+                                      if (loadingProgress == null) {
+                                        return child; // Tampilkan gambar
+                                      } else {
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          setState(() {
+                                            _isProcessing = false;
+                                          });
+                                        });
+                                        return Container(
+                                          child: Center(
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      return child; // Tampilkan gambar
+                                    } finally {
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                        setState(() {
+                                          _isProcessing = false;
+                                        });
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        Container(
-                          height: MediaQuery.of(context).size.height * 0.4,
-                          margin: EdgeInsets.only(bottom: 10.0),
-                          child: Image.network(
-                            _data![keyId]['photoUrl'],
-                            loadingBuilder: (context, child, loadingProgress) {
-                              try {
-                                if (loadingProgress == null) {
-                                  return child; // Tampilkan gambar
-                                } else {
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    setState(() {
-                                      _isProcessing = false;
-                                    });
-                                  });
-                                  return Container(
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
+                        Stack(
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.only(
+                                top: 30.0,
+                                bottom: 16.0,
+                                left: 16.0,
+                                right: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.grey),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.5),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _titile!,
+                                      style: TextStyle(
+                                        fontSize: 16.0,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  );
-                                }
-                              } catch (e) {
-                                return child; // Tampilkan gambar
-                              } finally {
-                                WidgetsBinding.instance
-                                    .addPostFrameCallback((_) {
-                                  setState(() {
-                                    _isProcessing = false;
-                                  });
-                                });
-                              }
-                            },
-                          ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 16,
+                              left: 16,
+                              child: Text(
+                                "Judul",
+                                style: TextStyle(
+                                  fontSize: 12.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         Stack(
                           children: [
@@ -755,108 +801,63 @@ class _DataLogPageState extends State<DataLogPage> {
                             ),
                           ],
                         ),
-                        Stack(
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              padding: EdgeInsets.only(
-                                top: 30.0,
-                                bottom: 16.0,
-                                left: 16.0,
-                                right: 16.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: Colors.grey),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.5),
-                                    spreadRadius: 1,
-                                    blurRadius: 5,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
+                        _type == 'presences'
+                            ? Stack(
                                 children: [
-                                  Flexible(
+                                  Container(
+                                    margin:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    padding: EdgeInsets.only(
+                                      top: 30.0,
+                                      bottom: 16.0,
+                                      left: 16.0,
+                                      right: 16.0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(15),
+                                      border: Border.all(color: Colors.grey),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.5),
+                                          spreadRadius: 1,
+                                          blurRadius: 5,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.start,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            _data![keyId]['presence'],
+                                            style: TextStyle(
+                                              fontSize: 16.0,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 16,
+                                    left: 16,
                                     child: Text(
-                                      _data![keyId]['lesson'],
+                                      "Keterangan",
                                       style: TextStyle(
-                                        fontSize: 16.0,
+                                        fontSize: 12.0,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
                                 ],
+                              )
+                            : Stack(
+                                children: [],
                               ),
-                            ),
-                            Positioned(
-                              top: 16,
-                              left: 16,
-                              child: Text(
-                                "Mata Kuliah",
-                                style: TextStyle(
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Stack(
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              padding: EdgeInsets.only(
-                                top: 30.0,
-                                bottom: 16.0,
-                                left: 16.0,
-                                right: 16.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: Colors.grey),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.5),
-                                    spreadRadius: 1,
-                                    blurRadius: 5,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      _data![keyId]['presence'],
-                                      style: TextStyle(
-                                        fontSize: 16.0,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              top: 16,
-                              left: 16,
-                              child: Text(
-                                "Keterangan",
-                                style: TextStyle(
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                         Stack(
                           children: [
                             Container(
@@ -910,46 +911,53 @@ class _DataLogPageState extends State<DataLogPage> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            if (keyId != null) {
-                              final locationUrl = _data![keyId]['location'];
-                              if (locationUrl != null &&
-                                  locationUrl.isNotEmpty) {
-                                launch(locationUrl); // Membuka URL lokasi
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content:
-                                          Text("URL lokasi tidak tersedia")),
-                                );
-                              }
-                            }
-                          },
-                          label: Text(
-                            "Lihat Lokasi",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        SizedBox(height: 24),
+                        if (_type == 'presences')
+                          Column(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  if (keyId != null) {
+                                    final locationUrl =
+                                        _data![keyId]['location'];
+                                    if (locationUrl != null &&
+                                        locationUrl.isNotEmpty) {
+                                      launch(locationUrl); // Membuka URL lokasi
+                                    } else {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                "URL lokasi tidak tersedia")),
+                                      );
+                                    }
+                                  }
+                                },
+                                label: Text(
+                                  "Lihat Lokasi",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                icon: Icon(
+                                  Icons.location_on,
+                                  color: Colors.white,
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  minimumSize: Size(175, 50),
+                                  elevation: 5,
+                                  shadowColor: Colors.grey,
+                                ),
+                              ),
+                              SizedBox(height: 24),
+                            ],
                           ),
-                          icon: Icon(
-                            Icons.location_on,
-                            color: Colors.white,
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            minimumSize: Size(175, 50),
-                            elevation: 5,
-                            shadowColor: Colors.grey,
-                          ),
-                        ),
-                        SizedBox(height: 30),
                       ],
                     ),
                   ),

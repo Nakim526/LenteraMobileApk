@@ -159,25 +159,35 @@ class _TaskPageState extends State<TaskPage> {
     }
   }
 
-  IconData getFileIcon(String filePath) {
+  Icon getFileIcon(String filePath) {
     final mimeType = lookupMimeType(filePath);
 
     if (mimeType == null) {
-      return Icons.insert_drive_file;
+      return Icon(Icons.insert_drive_file, color: Colors.grey);
     }
-
-    if (mimeType.startsWith("image/")) return Icons.image;
-    if (mimeType.startsWith("video/")) return Icons.video_library;
-    if (mimeType.startsWith("audio/")) return Icons.audiotrack;
-    if (mimeType == "application/pdf") return Icons.picture_as_pdf;
-    if (mimeType.contains("word")) return Icons.description;
-    if (mimeType.contains("spreadsheet")) return Icons.table_chart;
-    if (mimeType.contains("presentation")) return Icons.slideshow;
-    if (mimeType.contains("zip") || mimeType.contains("rar")) {
-      return Icons.archive;
+    if (mimeType.startsWith("image/")) {
+      return Icon(Icons.image, size: 20, color: Colors.blue);
+    } else if (mimeType.startsWith("video/")) {
+      return Icon(Icons.video_file, size: 20, color: Colors.orange);
+    } else if (mimeType.startsWith("audio/")) {
+      return Icon(Icons.audiotrack, size: 20, color: Colors.green);
+    } else if (mimeType == "application/pdf") {
+      return Icon(Icons.picture_as_pdf, size: 20, color: Colors.red);
+    } else if (mimeType.contains("word")) {
+      return Icon(Icons.description, size: 20, color: Colors.blue);
+    } else if (mimeType.contains("spreadsheet")) {
+      return Icon(Icons.table_chart, size: 20, color: Colors.green);
+    } else if (mimeType.contains("presentation")) {
+      return Icon(Icons.slideshow, size: 20, color: Colors.orange);
+    } else if (mimeType.contains("zip") || mimeType.contains("rar")) {
+      return Icon(Icons.archive, size: 20, color: Colors.grey);
+    } else if (mimeType == 'text/plain') {
+      return Icon(Icons.text_snippet, size: 20, color: Colors.blueGrey);
+    } else if (mimeType == 'application/json') {
+      return Icon(Icons.code, size: 20, color: Colors.deepPurple);
+    } else {
+      return Icon(Icons.insert_drive_file, size: 20, color: Colors.grey);
     }
-
-    return Icons.insert_drive_file; // Default untuk file lainnya
   }
 
   Future<drive.DriveApi?> getDriveApi({bool forceSignIn = false}) async {
@@ -259,12 +269,12 @@ class _TaskPageState extends State<TaskPage> {
     };
   }
 
-  Future<void> sendToDatabase(String? description) async {
+  Future<void> sendToDatabase() async {
     if (_taskId != null) {
       await _dbRef.child('$_matkul/$_taskId').update({
         'title': _titleController.text.trim(),
         'type': _category,
-        'description': description,
+        'description': _descriptionController.text.trim(),
         'files': _uploadedFiles,
         'deadline': _selectedDateTime,
         'timestamp': ServerValue.timestamp,
@@ -276,7 +286,7 @@ class _TaskPageState extends State<TaskPage> {
       await _dbRef.child('$_matkul/$task').set({
         'title': _titleController.text.trim(),
         'type': _category,
-        'description': description,
+        'description': _descriptionController.text.trim(),
         'files': _uploadedFiles,
         'deadline': _selectedDateTime,
         'timestamp': ServerValue.timestamp,
@@ -286,7 +296,7 @@ class _TaskPageState extends State<TaskPage> {
       await _dbRef.child('$_matkul/$task').set({
         'title': _titleController.text.trim(),
         'type': 'Postingan',
-        'description': description,
+        'description': _descriptionController.text.trim(),
         'files': _uploadedFiles,
         'timestamp': ServerValue.timestamp,
         'id': task,
@@ -313,13 +323,14 @@ class _TaskPageState extends State<TaskPage> {
                   'viewUrl': viewLink,
                   'downloadUrl': downloadLink,
                   'name': file.path.split('/').last,
+                  'mimeType': lookupMimeType(file.path),
                 });
               });
             }
           }
         }
       }
-      await sendToDatabase(_descriptionController.text.trim());
+      await sendToDatabase();
 
       await showDialog(
         context: context,
@@ -486,7 +497,9 @@ class _TaskPageState extends State<TaskPage> {
                                               BorderRadius.circular(4.0),
                                         ),
                                       ),
-                                      value: _category,
+                                      value: _category == 'Postingan'
+                                          ? null
+                                          : _category,
                                       items: [
                                         DropdownMenuItem(
                                           value: "Pengumuman",
@@ -525,6 +538,9 @@ class _TaskPageState extends State<TaskPage> {
                                         });
                                       },
                                       validator: (value) {
+                                        if (_category == 'Postingan') {
+                                          return null;
+                                        }
                                         if (value == null) {
                                           return 'Please select an option';
                                         }
@@ -549,6 +565,12 @@ class _TaskPageState extends State<TaskPage> {
                             ),
                             border: const OutlineInputBorder(),
                           ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a description';
+                            }
+                            return null;
+                          },
                         ),
                         SizedBox(height: 20),
                         Container(
@@ -574,11 +596,8 @@ class _TaskPageState extends State<TaskPage> {
                                         decoration: BoxDecoration(),
                                         child: Row(
                                           children: [
-                                            Icon(
-                                              getFileIcon(
-                                                  _selectedFiles[index].path),
-                                              size: 20,
-                                              color: Colors.red,
+                                            getFileIcon(
+                                              _selectedFiles[index].path,
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(

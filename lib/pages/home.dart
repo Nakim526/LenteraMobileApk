@@ -13,8 +13,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final PageController _pageController = PageController(viewportFraction: 1.0);
-  Map<String, dynamic>? _userData;
+  Map<dynamic, dynamic>? _userData;
+  Map<dynamic, dynamic>? _data;
   double? currentProgress = 0.0;
+  double? totalProgress = 30.0;
   bool _isLoading = false;
   bool toClose = true;
 
@@ -35,7 +37,7 @@ class _HomePageState extends State<HomePage> {
 
         final snapshot = await userRef.get();
         if (snapshot.exists && snapshot.value != null) {
-          final data = snapshot.value as Map;
+          final data = Map.from(snapshot.value as Map);
           Map<String, dynamic> mataKuliahData = {};
 
           data.forEach((key, value) {
@@ -46,6 +48,10 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             _userData = mataKuliahData;
           });
+          await getProgress();
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
     } finally {
@@ -55,7 +61,97 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> getTask(String idKey) async {}
+  Future<void> getProgress() async {
+    bool isAdmin = false;
+    Map data = {};
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final dbRef = FirebaseDatabase.instance.ref('tasks');
+      final userId = FirebaseDatabase.instance.ref('users/${user.uid}');
+      final role = await userId.child('role').get();
+      if (role.exists && role.value == 'admin') {
+        isAdmin = true;
+      }
+      for (var matkul in _userData!.keys) {
+        double progress = 0;
+        double total = 0;
+        final userRef = userId.child(matkul);
+        final snapshot = await dbRef.child(matkul).get();
+        if (snapshot.exists) {
+          final outerMap = Map.from(snapshot.value as Map);
+          for (var key in outerMap.keys) {
+            if (outerMap[key]['type'] == 'Tugas' ||
+                outerMap[key]['type'] == 'Kehadiran') {
+              total += 1;
+              if (isAdmin) {
+                progress += 1;
+              } else {
+                final assignments = await userRef.child('assignments').get();
+                if (assignments.exists) {
+                  final userProgress = Map.from(assignments.value as Map);
+                  for (var uid in userProgress.keys) {
+                    if (userProgress[uid] is Map) {
+                      if (userProgress[uid]['taskUid'] == key) {
+                        if (userProgress[uid]['status'] == 'Selesai') {
+                          progress += 1;
+                        } else if (userProgress[uid]['status'] == 'Terlambat') {
+                          progress += 0.5;
+                        }
+                      }
+                    }
+                  }
+                }
+                final presences = await userRef.child('presences').get();
+                if (presences.exists) {
+                  final userProgress = Map.from(presences.value as Map);
+                  for (var uid in userProgress.keys) {
+                    if (userProgress[uid] is Map) {
+                      if (userProgress[uid]['taskUid'] == key) {
+                        if (userProgress[uid]['status'] == 'Selesai') {
+                          progress += 1;
+                        } else if (userProgress[uid]['status'] == 'Terlambat') {
+                          progress += 0.5;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        setState(() {
+          if (total == 0) total = 0.01;
+          currentProgress = progress;
+          totalProgress = isAdmin ? 30 : total;
+        });
+        double percentage = currentProgress! / totalProgress!;
+        int percentText = (percentage * 100).toInt();
+        print(
+            'percentage: $percentage = $currentProgress / $totalProgress, percentText: $percentText = ${(percentage * 100).toInt()}');
+        await userRef.update({
+          'progress': progress,
+          'total': isAdmin ? 30 : total,
+          'percentage': percentage,
+          'percentText': percentText,
+          'jadwal': _userData![matkul]['jadwal'],
+        });
+        data.addAll({
+          matkul: {
+            'progress': progress,
+            'total': isAdmin ? 30 : total,
+            'percentage': percentage,
+            'percentText': percentText,
+            'jadwal': _userData![matkul]['jadwal'],
+          }
+        });
+      }
+      setState(() {
+        _data = data;
+      });
+    }
+    print(_data);
+  }
 
   Future<void> _logout(BuildContext context) async {
     // Hapus status login dari SharedPreferences
@@ -263,15 +359,15 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                   ),
-                  _userData == null
+                  _data == null
                       ? Container()
                       : ListView.builder(
                           padding: EdgeInsets.only(bottom: 16.0),
-                          itemCount: _userData!.length,
+                          itemCount: _data!.length,
                           shrinkWrap: true,
                           physics: NeverScrollableScrollPhysics(),
                           itemBuilder: (context, index) {
-                            final key = _userData!.keys.elementAt(index);
+                            final key = _data!.keys.elementAt(index);
                             return Container(
                               margin: EdgeInsets.symmetric(
                                 horizontal: 20.0,
@@ -292,7 +388,7 @@ class _HomePageState extends State<HomePage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   subtitle: Text(
-                                    _userData![key]['jadwal'],
+                                    _data![key]['jadwal'],
                                     style: TextStyle(
                                       fontSize: 12.0,
                                       fontWeight: FontWeight.w500,
@@ -301,25 +397,19 @@ class _HomePageState extends State<HomePage> {
                                   trailing: Stack(
                                     children: [
                                       CircularProgressIndicator(
-                                        value: _userData![key]['percentage']
+                                        value: _data![key]['percentage']
                                             .toDouble(),
                                         strokeWidth: 5.0,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                          Colors.primaries[index %
-                                                          Colors
-                                                              .primaries.length]
-                                                      .computeLuminance() >
-                                                  0.24
-                                              ? Colors.white
-                                              : Colors.green[900]!,
+                                          Colors.green[900]!,
                                         ),
                                         backgroundColor: Colors.white,
                                       ),
                                       Positioned.fill(
                                         child: Center(
                                           child: Text(
-                                            '${_userData![key]['percentText']}%',
+                                            '${_data![key]['percentText']}%',
                                             style: TextStyle(
                                               fontSize: 10.0,
                                               fontWeight: FontWeight.w500,
@@ -334,7 +424,7 @@ class _HomePageState extends State<HomePage> {
                                       '/lesson',
                                       <String, dynamic>{
                                         'matkul': key,
-                                        'jadwal': _userData![key]['jadwal'],
+                                        'jadwal': _data![key]['jadwal'],
                                         'color': Colors
                                             .primaries[
                                                 index % Colors.primaries.length]
