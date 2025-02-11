@@ -33,7 +33,6 @@ class _DataLogPageState extends State<DataLogPage> {
   @override
   void initState() {
     super.initState();
-    _sort = 'asc';
   }
 
   @override
@@ -72,12 +71,14 @@ class _DataLogPageState extends State<DataLogPage> {
         if (role.exists && role.value == 'admin') {
           setState(() {
             _isAdmin = true;
+            _sort = 'asc';
           });
           if (_sort == 'asc' || _sort == 'desc') {
             final snapshot = await _dbRef
                 .child('$_matkul/$_taskId/$_type')
                 .orderByChild('name')
                 .get();
+            print(snapshot.key);
             if (snapshot.exists) {
               // Konversi snapshot menjadi Map<String, dynamic>
               final rawData = Map<String, dynamic>.from(snapshot.value as Map);
@@ -254,6 +255,76 @@ class _DataLogPageState extends State<DataLogPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Terjadi kesalahan saat menghapus note: $e'),
       ));
+    }
+  }
+
+  Icon getFileIcon(String mimeType) {
+    if (mimeType.startsWith("image/")) {
+      return Icon(
+        Icons.image,
+        size: 20,
+        color: Colors.blue,
+      );
+    } else if (mimeType.startsWith("video/")) {
+      return Icon(
+        Icons.video_file,
+        size: 20,
+        color: Colors.orange,
+      );
+    } else if (mimeType.startsWith("audio/")) {
+      return Icon(
+        Icons.audiotrack,
+        size: 20,
+        color: Colors.green,
+      );
+    } else if (mimeType == "application/pdf") {
+      return Icon(
+        Icons.picture_as_pdf,
+        size: 20,
+        color: Colors.red,
+      );
+    } else if (mimeType.contains("word")) {
+      return Icon(
+        Icons.description,
+        size: 20,
+        color: Colors.blue,
+      );
+    } else if (mimeType.contains("spreadsheet")) {
+      return Icon(
+        Icons.table_chart,
+        size: 20,
+        color: Colors.green,
+      );
+    } else if (mimeType.contains("presentation")) {
+      return Icon(
+        Icons.slideshow,
+        size: 20,
+        color: Colors.orange,
+      );
+    } else if (mimeType.contains("zip") || mimeType.contains("rar")) {
+      return Icon(
+        Icons.archive,
+        size: 20,
+        color: Colors.grey,
+      );
+    } else if (mimeType == 'text/plain') {
+      return Icon(
+        Icons.text_snippet,
+        size: 20,
+        color: Colors.blueGrey,
+      );
+    } else if (mimeType == 'application/json') {
+      return Icon(
+        Icons.code,
+        size: 20,
+        color: Colors.deepPurple,
+      );
+    } else {
+      return Icon(
+        Icons.insert_drive_file,
+        size: 20,
+        color: Colors.grey,
+      );
     }
   }
 
@@ -902,7 +973,7 @@ class _DataLogPageState extends State<DataLogPage> {
                               top: 16,
                               left: 16,
                               child: Text(
-                                "Waktu",
+                                "Diserahkan",
                                 style: TextStyle(
                                   fontSize: 12.0,
                                   fontWeight: FontWeight.bold,
@@ -911,6 +982,143 @@ class _DataLogPageState extends State<DataLogPage> {
                             ),
                           ],
                         ),
+                        if (_type == 'assignments')
+                          Stack(
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                padding: EdgeInsets.only(
+                                  top: 30.0,
+                                  bottom: 16.0,
+                                  left: 16.0,
+                                  right: 16.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(color: Colors.grey),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.5),
+                                      spreadRadius: 1,
+                                      blurRadius: 5,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: List.generate(
+                                      _data![keyId]['files'].length, (index) {
+                                    return Container(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 4),
+                                      margin: EdgeInsets.zero,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          getFileIcon(_data![keyId]['files']
+                                              [index]['mimeType']),
+                                          SizedBox(width: 8.0),
+                                          TextButton(
+                                            onPressed: () {
+                                              launchUrl(
+                                                Uri.parse(
+                                                  _data![keyId]['files'][index]
+                                                      ['viewUrl'],
+                                                ),
+                                              );
+                                            },
+                                            style: TextButton.styleFrom(
+                                              padding: EdgeInsets.all(0),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.zero,
+                                              ),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            child: Text(
+                                              _data![keyId]['files'][index]
+                                                  ['name'],
+                                              style: TextStyle(
+                                                fontSize: 14.0,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ),
+                              Positioned(
+                                top: 16,
+                                left: 16,
+                                child: Text(
+                                  "Lampiran",
+                                  style: TextStyle(
+                                    fontSize: 12.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (_data![keyId]['comment'] != null)
+                          Stack(
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                padding: EdgeInsets.only(
+                                  top: 30.0,
+                                  bottom: 16.0,
+                                  left: 16.0,
+                                  right: 16.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(color: Colors.grey),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.5),
+                                      spreadRadius: 1,
+                                      blurRadius: 5,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        _data![keyId]['comment'],
+                                        style: TextStyle(
+                                          fontSize: 16.0,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Positioned(
+                                top: 16,
+                                left: 16,
+                                child: Text(
+                                  "Komentar",
+                                  style: TextStyle(
+                                    fontSize: 12.0,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         SizedBox(height: 24),
                         if (_type == 'presences')
                           Column(
@@ -976,7 +1184,9 @@ class _DataLogPageState extends State<DataLogPage> {
                 color: Colors.white,
                 child: Center(
                   child: Text(
-                    "Not presence yet",
+                    _type == 'presences'
+                        ? "Not presence yet"
+                        : "Not assignment yet",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,

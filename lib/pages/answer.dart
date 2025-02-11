@@ -45,6 +45,7 @@ class _AnswerPageState extends State<AnswerPage> {
   File? _file;
   int? sent;
   bool _isLoading = false;
+  bool _isAdmin = false;
   bool _isFirst = true;
   bool _isOpen = false;
   bool _isSent = false;
@@ -81,6 +82,7 @@ class _AnswerPageState extends State<AnswerPage> {
         _matkul = matkul['name'];
         _key = matkul['key'];
         _data = matkul['data'];
+        _isAdmin = matkul['user'];
       });
 
       _loadData();
@@ -105,7 +107,6 @@ class _AnswerPageState extends State<AnswerPage> {
       if (Platform.isAndroid) {
         var status = await Permission.manageExternalStorage.request();
         if (!status.isGranted) {
-          print('Status izin penyimpanan: ${status.toString()}');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Status: ${status.toString()}'),
@@ -140,34 +141,23 @@ class _AnswerPageState extends State<AnswerPage> {
     } else if (category == 'Kehadiran') {
       type = 'presences';
     }
-    print('key=$_key, type=$type, $uid : data: ${_data![type].keys.toList()}');
     if (type == null) return;
     if (uid == null) return;
     setState(() {
-      print(_data![type][uid]['name']);
       _nameController.text = _data![type][uid]['name'];
-      print(_data![type][uid]['nim']);
       _nimController.text = _data![type][uid]['nim'];
-      print(_data![type][uid]['comment']);
       _commentController.text = _data![type][uid]['comment'] ?? '';
-      print(_data![type][uid]['timestamp']);
       sent = _data![type][uid]['timestamp'];
     });
     if (_isFirst) {
-      print(_isFirst);
       if (_data!['type'] == 'Tugas') {
-        print(_data!['type']);
-        print(_data![type][uid]['files']);
         if (_data![type][uid]['files'] != null) {
-          print(_data![type][uid]['files'].length);
           for (int i = 0; i < _data![type][uid]['files'].length; i++) {
             String fileUrl = _data![type][uid]['files'][i]['downloadUrl'];
             String fileName = _data![type][uid]['files'][i]['name'];
 
             String? downloadedFilePath = await downloadFile(fileUrl, fileName);
-            print(downloadedFilePath);
             if (downloadedFilePath != null) {
-              print(downloadedFilePath);
               setState(() {
                 _selectedFiles.add(File(downloadedFilePath));
               });
@@ -189,8 +179,6 @@ class _AnswerPageState extends State<AnswerPage> {
         _isEdit = false;
       });
     }
-    print(_selectedFiles);
-    print(_photoPath);
   }
 
   Future<void> _loadData() async {
@@ -202,6 +190,7 @@ class _AnswerPageState extends State<AnswerPage> {
       if (user != null) {
         final userRef =
             FirebaseDatabase.instance.ref('users/${user.uid}/$_matkul');
+        final announcementRef = await userRef.child('announcements').get();
         final assignmentRef = await userRef.child('assignments').get();
         final presenceRef = await userRef.child('presences').get();
         final snapshot = await _dbRef.child(_matkul!).child(_key!).get();
@@ -210,13 +199,36 @@ class _AnswerPageState extends State<AnswerPage> {
           setState(() {
             _data = Map.from(snapshot.value as Map);
           });
-          if (_data!['type'] == 'Tugas') {
+          if (_data!['type'] == 'Pengumuman') {
+            if (announcementRef.exists) {
+              final announcements = Map.from(announcementRef.value as Map);
+
+              for (var uid in announcements.keys) {
+                if (announcements[uid]['status'] != null &&
+                    announcements[uid]['taskUid'] == _key) {
+                  return;
+                }
+              }
+            }
+            final refUser = FirebaseDatabase.instance.ref('users/${user.uid}');
+            String? userId = refUser.child('$_matkul/announcements').push().key;
+            String? postId =
+                _dbRef.child('$_matkul/$_key/announcements').push().key;
+            await _dbRef.child('$_matkul/$_key/announcements/$postId').set({
+              'timestamp': ServerValue.timestamp,
+              'user': user.uid,
+              'userPost': userId,
+            });
+            await refUser.child('$_matkul/announcements/$userId').set({
+              'taskUid': _key,
+              'postUid': postId,
+              'status': "Selesai",
+            });
+          } else if (_data!['type'] == 'Tugas') {
             if (assignmentRef.exists) {
               final assignments = Map.from(assignmentRef.value as Map);
 
               for (var uid in assignments.keys) {
-                print(
-                    'isFirst: ${assignments[uid]['status'] != null && assignments[uid]['taskUid'] == _key}');
                 if (assignments[uid]['status'] != null &&
                     assignments[uid]['taskUid'] == _key) {
                   setState(() {
@@ -233,19 +245,12 @@ class _AnswerPageState extends State<AnswerPage> {
               final presences = Map.from(presenceRef.value as Map);
 
               for (var uid in presences.keys) {
-                print(
-                    '_key = $_key, postUid = ${presences[uid]['postUid']}, taskUid = ${presences[uid]['taskUid']}');
-                print(
-                    '${presences[uid]['status']} != null: ${presences[uid]['status'] != null}');
-                print(
-                    '${presences[uid]['taskUid']} == $_key: ${presences[uid]['taskUid'] == _key}');
                 if (presences[uid]['status'] != null &&
                     presences[uid]['taskUid'] == _key) {
                   setState(() {
                     _isFirst = true;
                     _this = presences[uid]['postUid'];
                   });
-                  print('key = $uid, postUid = $_this');
                   await syncData(_data!['type'], _this);
                   return;
                 }
@@ -386,8 +391,8 @@ class _AnswerPageState extends State<AnswerPage> {
           status = "Terlambat";
         }
       }
-      if (_isEdit) {
-        await _dbRef.child('$_matkul/$_key/presences/$_this').update({
+      if (_isEdit && _isSent) {
+        await _dbRef.child('$_matkul/$_key/assignments/$_this').update({
           "name": _nameController.text,
           "nim": _nimController.text,
           "comment": _commentController.text,
@@ -397,8 +402,8 @@ class _AnswerPageState extends State<AnswerPage> {
         return;
       }
       String? userId = refUser.child('$_matkul/assignments').push().key;
-      String? taskId = _dbRef.child('$_matkul/$_key/assignments').push().key;
-      await _dbRef.child('$_matkul/$_key/assignments/$taskId').set({
+      String? postId = _dbRef.child('$_matkul/$_key/assignments').push().key;
+      await _dbRef.child('$_matkul/$_key/assignments/$postId').set({
         'name': _nameController.text.trim(),
         'nim': _nimController.text.trim(),
         'comment': _commentController.text.trim(),
@@ -409,7 +414,7 @@ class _AnswerPageState extends State<AnswerPage> {
       });
       await refUser.child('$_matkul/assignments/$userId').set({
         'taskUid': _key,
-        'postUid': taskId,
+        'postUid': postId,
         'status': status,
       });
     }
@@ -427,7 +432,7 @@ class _AnswerPageState extends State<AnswerPage> {
           status = "Terlambat";
         }
       }
-      if (_isEdit) {
+      if (_isEdit && _isSent) {
         await _dbRef.child('$_matkul/$_key/presences/$_this').update({
           "name": _nameController.text,
           "nim": _nimController.text,
@@ -440,8 +445,8 @@ class _AnswerPageState extends State<AnswerPage> {
         return;
       }
       String? userId = refUser.child('$_matkul/presences').push().key;
-      String? taskId = _dbRef.child('$_matkul/$_key/presences').push().key;
-      await _dbRef.child('$_matkul/$_key/presences/$taskId').set({
+      String? postId = _dbRef.child('$_matkul/$_key/presences').push().key;
+      await _dbRef.child('$_matkul/$_key/presences/$postId').set({
         "name": _nameController.text,
         "nim": _nimController.text,
         "comment": _commentController.text,
@@ -454,7 +459,7 @@ class _AnswerPageState extends State<AnswerPage> {
       });
       await refUser.child('$_matkul/presences/$userId').set({
         "taskUid": _key,
-        "postUid": taskId,
+        "postUid": postId,
         "status": status,
       });
     }
@@ -466,6 +471,13 @@ class _AnswerPageState extends State<AnswerPage> {
     });
     try {
       String? photoUrl;
+      if (_isEdit && _isSent) {
+        if (_selectedFiles.isNotEmpty) {
+          setState(() {
+            _uploadedFiles.clear();
+          });
+        }
+      }
       if (_selectedFiles.isNotEmpty) {
         for (int i = 0; i < _selectedFiles.length; i++) {
           File file = _selectedFiles[i];
@@ -500,9 +512,7 @@ class _AnswerPageState extends State<AnswerPage> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: Text("Upload Berhasil"),
-            content: Text(
-              "Tugas baru berhasil ditambahkan.",
-            ),
+            content: Text("Data anda berhasil dikirimkan"),
             actions: [
               TextButton(
                 child: Text("OK"),
@@ -756,23 +766,25 @@ class _AnswerPageState extends State<AnswerPage> {
                                       ),
                                     ),
                                   ),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16.0,
-                                      vertical: 8.0,
-                                    ),
-                                    width: double.infinity,
-                                    color: Colors.green.shade100,
-                                    child: Text(
-                                      'Batas Waktu: ${formatTimestamp(
-                                        _data!['deadline'] ?? 0,
-                                      )}',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.w500,
+                                  if (_data!['type'] == 'Tugas' ||
+                                      _data!['type'] == 'Kehadiran')
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 16.0,
+                                        vertical: 8.0,
+                                      ),
+                                      width: double.infinity,
+                                      color: Colors.green.shade100,
+                                      child: Text(
+                                        'Batas Waktu: ${formatTimestamp(
+                                          _data!['deadline'] ?? 0,
+                                        )}',
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -845,14 +857,77 @@ class _AnswerPageState extends State<AnswerPage> {
                               );
                             },
                           ),
-                          SizedBox(height: 60.0),
+                          if ((_data!['type'] == 'Tugas' ||
+                                  _data!['type'] == 'Kehadiran') &&
+                              _isAdmin)
+                            Container(
+                              margin: EdgeInsets.symmetric(
+                                vertical: 30,
+                              ),
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  String type = _data!['type'];
+                                  if (type == 'Tugas') {
+                                    type = 'assignments';
+                                  } else if (type == 'Kehadiran') {
+                                    type = 'presences';
+                                  }
+                                  await Navigator.pushNamed(
+                                    context,
+                                    '/datalog',
+                                    arguments: {
+                                      'uid': _key,
+                                      'type': type,
+                                      'matkul': _matkul,
+                                      'title': _data!['title'],
+                                    },
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 4.0,
+                                  backgroundColor: Colors.green[900],
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                    // horizontal: 8.0,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8.0),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.search,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(width: 8.0),
+                                    Text(
+                                      'Lihat Riwayat',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8.0),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else if ((_data!['type'] == 'Tugas' ||
+                                  _data!['type'] == 'Kehadiran') &&
+                              !_isAdmin)
+                            SizedBox(height: 60.0),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              if (_data!['type'] == 'Tugas' || _data!['type'] == 'Kehadiran')
+              if ((_data!['type'] == 'Tugas' ||
+                      _data!['type'] == 'Kehadiran') &&
+                  !_isAdmin)
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -948,8 +1023,7 @@ class _AnswerPageState extends State<AnswerPage> {
                                         width: double.infinity,
                                         color: Colors.green.shade100,
                                         child: Text(
-                                          formatTimestamp(
-                                              _data!['deadline'] ?? 0),
+                                          formatTimestamp(_data!['deadline']),
                                           style: TextStyle(
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -1014,7 +1088,7 @@ class _AnswerPageState extends State<AnswerPage> {
                                         ),
                                       ),
                                       SizedBox(height: 24.0),
-                                      Container(
+                                      SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton(
                                           onPressed: () async {
@@ -1049,7 +1123,7 @@ class _AnswerPageState extends State<AnswerPage> {
                                         ),
                                       ),
                                       SizedBox(height: 12.0),
-                                      Container(
+                                      SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton(
                                           onPressed: () async {
@@ -1061,18 +1135,19 @@ class _AnswerPageState extends State<AnswerPage> {
                                             }
                                             final set =
                                                 await userCheck(_key!, type);
-                                            Navigator.pushNamed(
+                                            await Navigator.pushNamed(
                                               context,
                                               '/datalog',
                                               arguments: {
-                                                'matkul': _matkul!,
                                                 'uid': _key,
                                                 'type': type,
+                                                'matkul': _matkul!,
                                                 'title': _data!['title'],
                                                 'postUser': _data![type][set]
                                                     ['userPost'],
                                               },
                                             );
+                                            _loadData();
                                           },
                                           style: ElevatedButton.styleFrom(
                                             elevation: 4.0,
@@ -1304,12 +1379,12 @@ class _AnswerPageState extends State<AnswerPage> {
                                                                   : 'Lihat Foto',
                                                       style: TextStyle(
                                                         color: photoError
-                                                            ? _photoPath == null
+                                                            ? Colors.red[800]
+                                                            : fileError
                                                                 ? Colors
                                                                     .red[800]
                                                                 : Colors
-                                                                    .grey[800]
-                                                            : Colors.grey[800],
+                                                                    .grey[800],
                                                         fontWeight:
                                                             FontWeight.w400,
                                                         fontSize: 16,
@@ -1440,12 +1515,14 @@ class _AnswerPageState extends State<AnswerPage> {
                                         width: double.infinity,
                                         child: ElevatedButton(
                                           onPressed: () async {
-                                            if (_photoPath == null) {
+                                            if (_photoPath == null &&
+                                                _selectedFiles.isNotEmpty) {
                                               setState(() {
                                                 photoError = true;
                                               });
                                             }
-                                            if (_selectedFiles.isEmpty) {
+                                            if (_selectedFiles.isEmpty &&
+                                                _photoPath == null) {
                                               setState(() {
                                                 fileError = true;
                                               });

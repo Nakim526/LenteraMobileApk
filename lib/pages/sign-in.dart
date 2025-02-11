@@ -66,9 +66,9 @@ class _SignInPageState extends State<SignInPage> {
 
   Future<void> getProgress(String? matkul, String? jadwal, bool? admin) async {
     double currentProgress = 0;
-    double totalProgress = 0.1;
+    double totalProgress = 0;
     double progress = 0;
-    int total = 0;
+    double total = 0;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userRef =
@@ -100,11 +100,33 @@ class _SignInPageState extends State<SignInPage> {
                 }
               }
             }
+          } else if (outerMap[key]['type'] == 'Pengumuman') {
+            total += 0.5;
+            if (admin!) {
+              progress += 0.5;
+            } else {
+              final announcements = await userRef.child('announcements').get();
+              if (announcements.exists) {
+                final userProgress = Map.from(announcements.value as Map);
+                for (var uid in userProgress.keys) {
+                  if (userProgress[uid] is Map) {
+                    if (userProgress[uid]['taskUid'] == key) {
+                      if (userProgress[uid]['status'] == 'Selesai') {
+                        progress += 0.5;
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
-        currentProgress = progress;
-        totalProgress = admin! ? 30 : total.toDouble() + 0.01;
       }
+      setState(() {
+        if (total == 0) total = 0.1;
+        currentProgress = progress;
+        totalProgress = admin! ? 30 : total;
+      });
       double percentage = currentProgress / totalProgress;
       int percentText = (percentage * 100).toInt();
       await userRef.update({
@@ -204,6 +226,9 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   Future<void> _loginWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
     try {
       // Buat instance GoogleSignIn
       final GoogleSignIn googleSignIn = GoogleSignIn();
@@ -249,6 +274,10 @@ class _SignInPageState extends State<SignInPage> {
           ],
         ),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 

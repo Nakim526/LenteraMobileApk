@@ -13,13 +13,15 @@ class LessonPage extends StatefulWidget {
 class _LessonPageState extends State<LessonPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('tasks');
   Map<dynamic, dynamic>? _data;
-  Map<dynamic, dynamic>? _matkul;
   Map<dynamic, dynamic>? _status;
   Map<dynamic, dynamic>? _type;
   double? currentProgress = 0.0;
-  double? totalProgress = 30.0;
+  double? totalProgress = 16.0;
   String? keyId;
   String? postUser;
+  String? _matkul;
+  String? _jadwal;
+  int? _color;
   bool _isAdmin = false;
   bool _isLoading = false;
   bool _isFirst = true;
@@ -44,7 +46,9 @@ class _LessonPageState extends State<LessonPage> {
 
       setState(() {
         _isFirst = false;
-        _matkul = matkul;
+        _matkul = matkul['matkul'];
+        _jadwal = matkul['jadwal'];
+        _color = matkul['color'];
       });
 
       _loadData();
@@ -68,7 +72,7 @@ class _LessonPageState extends State<LessonPage> {
           });
         }
         await getProgress();
-        final DatabaseReference taskRef = _dbRef.child(_matkul!['matkul']);
+        final DatabaseReference taskRef = _dbRef.child(_matkul!);
         final snapshot = await taskRef.orderByChild('timestamp').get();
         if (snapshot.exists) {
           final rawData = Map<String, dynamic>.from(snapshot.value as Map);
@@ -103,9 +107,9 @@ class _LessonPageState extends State<LessonPage> {
     double total = 0;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final userRef = FirebaseDatabase.instance
-          .ref('users/${user.uid}/${_matkul!['matkul']}');
-      final snapshot = await _dbRef.child(_matkul!['matkul']).get();
+      final userRef =
+          FirebaseDatabase.instance.ref('users/${user.uid}/$_matkul');
+      final snapshot = await _dbRef.child(_matkul!).get();
       if (snapshot.exists) {
         final outerMap = Map.from(snapshot.value as Map);
         for (var key in outerMap.keys) {
@@ -158,6 +162,31 @@ class _LessonPageState extends State<LessonPage> {
                 }
               }
             }
+          } else if (outerMap[key]['type'] == 'Pengumuman') {
+            total += 0.5;
+            if (_isAdmin) {
+              progress += 0.5;
+            } else {
+              final announcements = await userRef.child('announcements').get();
+              if (announcements.exists) {
+                final userProgress = Map.from(announcements.value as Map);
+                for (var uid in userProgress.keys) {
+                  if (userProgress[uid] is Map) {
+                    if (userProgress[uid]['taskUid'] == key) {
+                      if (userProgress[uid]['status'] == 'Selesai') {
+                        progress += 0.5;
+                      }
+                      setState(() {
+                        status.addAll({
+                          userProgress[uid]['taskUid']: userProgress[uid]
+                              ['status'],
+                        });
+                      });
+                    }
+                  }
+                }
+              }
+            }
           }
           setState(() {
             type.addAll({
@@ -180,7 +209,7 @@ class _LessonPageState extends State<LessonPage> {
         'total': _isAdmin ? 30 : total,
         'percentage': percentage,
         'percentText': percentText,
-        'jadwal': _matkul!['jadwal'],
+        'jadwal': _jadwal,
       });
     }
   }
@@ -199,8 +228,7 @@ class _LessonPageState extends State<LessonPage> {
   Future<String?> userCheck(String idKey) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final snapshot =
-          await _dbRef.child('${_matkul!['matkul']}/$idKey/presences').get();
+      final snapshot = await _dbRef.child('$_matkul/$idKey/presences').get();
       if (snapshot.exists) {
         final outerMap = Map.from(snapshot.value as Map);
         for (var key in outerMap.keys) {
@@ -307,28 +335,44 @@ class _LessonPageState extends State<LessonPage> {
     }
   }
 
-  Future<void> deleteTask(String idKey) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final snapshot =
-          await _dbRef.child('${user.uid}/${_matkul!['matkul']}').get();
-      if (snapshot.exists) {
-        final outerMap = Map.from(snapshot.value as Map);
-        for (var key in outerMap.keys) {
-          if (outerMap[key]['taskUid'] == idKey) {
-            await _dbRef
-                .child('${user.uid}/${_matkul!['matkul']}/$key')
-                .remove();
-          }
+  Future<void> deleteTask(String idKey, String type) async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      bool satset = false;
+      if (type == 'Tugas') {
+        type = 'assignments';
+        satset = true;
+      } else if (type == 'Kehadiran') {
+        type = 'presences';
+        satset = true;
+      }
+      if (satset) {
+        final userRef = FirebaseDatabase.instance.ref('users');
+        final allUserRef = await _dbRef.child('$_matkul/$idKey/$type').get();
+        final allPost = Map.from(allUserRef.value as Map);
+        for (var userPost in allPost.keys) {
+          String userUid = allPost[userPost]['user'];
+          String userPostUid = allPost[userPost]['userPost'];
+          await userRef.child('$userUid/$_matkul/$type/$userPostUid').remove();
         }
       }
+      await _dbRef.child('$_matkul/$idKey').remove();
+      print('berhasil');
+    } catch (e) {
+      print(e);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+      _loadData();
     }
-    await _dbRef.child('${_matkul!['matkul']}/$idKey').remove();
   }
 
   @override
   Widget build(BuildContext context) {
-    double luminance = Color(_matkul!['color']).computeLuminance();
+    double luminance = Color(_color!).computeLuminance();
     double percentage = currentProgress! / totalProgress!;
     int percentText = (percentage * 100).toInt();
     return WillPopScope(
@@ -348,7 +392,7 @@ class _LessonPageState extends State<LessonPage> {
           Scaffold(
             appBar: AppBar(
               title: Text(
-                _matkul!['matkul']!,
+                _matkul!,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -409,7 +453,7 @@ class _LessonPageState extends State<LessonPage> {
                                     luminance < 0.24
                                         ? Colors.grey[700]!
                                         : Colors.grey[300]!,
-                                    Color(_matkul!['color']),
+                                    Color(_color!),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.center,
@@ -419,7 +463,7 @@ class _LessonPageState extends State<LessonPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _matkul!['matkul']!,
+                                    _matkul!,
                                     style: TextStyle(
                                       fontSize: 24.0,
                                       fontWeight: FontWeight.bold,
@@ -429,7 +473,7 @@ class _LessonPageState extends State<LessonPage> {
                                     ),
                                   ),
                                   Text(
-                                    _matkul!['jadwal']!,
+                                    _jadwal!,
                                     style: TextStyle(
                                       fontSize: 16.0,
                                       fontWeight: FontWeight.bold,
@@ -484,7 +528,10 @@ class _LessonPageState extends State<LessonPage> {
                                     width: double.infinity,
                                     child: ElevatedButton(
                                       onPressed: () {
-                                        _navigateAndRefresh('/task', _matkul);
+                                        _navigateAndRefresh(
+                                          '/task',
+                                          {'matkul': _matkul},
+                                        );
                                       },
                                       style: ElevatedButton.styleFrom(
                                         elevation: 4,
@@ -518,7 +565,7 @@ class _LessonPageState extends State<LessonPage> {
                                         _navigateAndRefresh(
                                           '/task',
                                           {
-                                            'matkul': _matkul!['matkul'],
+                                            'matkul': _matkul,
                                             'users': true,
                                           },
                                         );
@@ -629,22 +676,54 @@ class _LessonPageState extends State<LessonPage> {
                                                   ),
                                                 ];
                                               },
-                                              onSelected: (value) {
+                                              onSelected: (value) async {
                                                 if (value == 'edit') {
                                                   _navigateAndRefresh(
                                                     '/task',
                                                     {
-                                                      'matkul':
-                                                          _matkul!['matkul'],
+                                                      'matkul': _matkul,
                                                       'key': key,
                                                       'data': _data![key]
                                                     },
                                                   );
                                                 }
                                                 if (value == 'delete') {
-                                                  setState(() {
-                                                    // _data!.remove(key);
-                                                  });
+                                                  await showDialog(
+                                                    context: context,
+                                                    builder: (context) {
+                                                      return AlertDialog(
+                                                        title: const Text(
+                                                            'Konfirmasi'),
+                                                        content: const Text(
+                                                            'Anda yakin ingin menghapus tugas ini?'),
+                                                        actions: <Widget>[
+                                                          TextButton(
+                                                            child: const Text(
+                                                                'Batal'),
+                                                            onPressed: () {
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop();
+                                                              return;
+                                                            },
+                                                          ),
+                                                          TextButton(
+                                                            child: const Text(
+                                                                'Hapus'),
+                                                            onPressed: () {
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop();
+                                                              deleteTask(
+                                                                  key,
+                                                                  _data![key]
+                                                                      ['type']);
+                                                            },
+                                                          ),
+                                                        ],
+                                                      );
+                                                    },
+                                                  );
                                                 }
                                               },
                                             ),
@@ -663,13 +742,12 @@ class _LessonPageState extends State<LessonPage> {
                                                     ),
                                                   ];
                                                 },
-                                                onSelected: (value) {
+                                                onSelected: (value) async {
                                                   if (value == 'edit') {
                                                     _navigateAndRefresh(
                                                       '/task',
                                                       {
-                                                        'matkul':
-                                                            _matkul!['matkul'],
+                                                        'matkul': _matkul,
                                                         'key': key,
                                                         'data': _data![key],
                                                         'users': true
@@ -677,9 +755,42 @@ class _LessonPageState extends State<LessonPage> {
                                                     );
                                                   }
                                                   if (value == 'delete') {
-                                                    setState(() {
-                                                      // _data!.remove(key);
-                                                    });
+                                                    await showDialog(
+                                                      context: context,
+                                                      builder: (context) {
+                                                        return AlertDialog(
+                                                          title: const Text(
+                                                              'Konfirmasi'),
+                                                          content: const Text(
+                                                              'Anda yakin ingin menghapus tugas ini?'),
+                                                          actions: <Widget>[
+                                                            TextButton(
+                                                              child: const Text(
+                                                                  'Batal'),
+                                                              onPressed: () {
+                                                                Navigator.of(
+                                                                        context)
+                                                                    .pop();
+                                                                return;
+                                                              },
+                                                            ),
+                                                            TextButton(
+                                                              child: const Text(
+                                                                  'Hapus'),
+                                                              onPressed: () {
+                                                                Navigator.of(
+                                                                        context)
+                                                                    .pop();
+                                                                deleteTask(
+                                                                    key,
+                                                                    _data![key][
+                                                                        'type']);
+                                                              },
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                    );
                                                   }
                                                 },
                                               )
@@ -702,43 +813,19 @@ class _LessonPageState extends State<LessonPage> {
                                                 ),
                                               ),
                                     onTap: () async {
-                                      // setState(() {
-                                      //   appbar = _data![key]['type'];
-                                      //   keyId = key;
-                                      //   _isOpen = true;
-                                      // });
                                       _navigateAndRefresh('/answer', {
                                         'key': key,
-                                        'name': _matkul!['matkul'],
+                                        'name': _matkul,
                                         'data': _data![key],
+                                        'user': _isAdmin,
                                       });
-                                      // final set = await userCheck(key);
-                                      if (_isAdmin) {
-                                        _navigateAndRefresh('/datalog', {
-                                          'matkul': _matkul!['matkul'],
-                                          'uid': key
-                                        });
-                                        // } else if (!_isAdmin) {
-                                        //   if (set != null) {
-                                        //     _navigateAndRefresh(
-                                        //         '/datalog', {
-                                        //       'matkul': _matkul!['matkul'],
-                                        //       'uid': key,
-                                        //       'postUser': _data![key]
-                                        //               ['presences'][set]
-                                        //           ['userPost'],
-                                        //     });
-                                        //   } else {
-                                        //     _navigateAndRefresh(
-                                        //       '/presence',
-                                        //       {
-                                        //         'matkul':
-                                        //             _matkul!['matkul'],
-                                        //         'uid': key,
-                                        //       },
-                                        //     );
-                                        //   }
-                                      }
+                                      // if (_isAdmin) {
+                                      //   _navigateAndRefresh('/datalog', {
+                                      //     'uid': key,
+                                      //     'matkul': _matkul,
+                                      //     'type': _data![key]['type'],
+                                      //   });
+                                      // }
                                     },
                                   ),
                                 ),

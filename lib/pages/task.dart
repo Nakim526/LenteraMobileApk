@@ -270,13 +270,18 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   Future<void> sendToDatabase() async {
+    if (_category == 'Pengumuman') {
+      setState(() {
+        _selectedDateTime = 0;
+      });
+    }
     if (_taskId != null) {
       await _dbRef.child('$_matkul/$_taskId').update({
         'title': _titleController.text.trim(),
         'type': _category,
         'description': _descriptionController.text.trim(),
         'files': _uploadedFiles,
-        'deadline': _selectedDateTime,
+        'deadline': _selectedDateTime ?? 0,
         'timestamp': ServerValue.timestamp,
       });
       return;
@@ -288,7 +293,7 @@ class _TaskPageState extends State<TaskPage> {
         'type': _category,
         'description': _descriptionController.text.trim(),
         'files': _uploadedFiles,
-        'deadline': _selectedDateTime,
+        'deadline': _selectedDateTime ?? 0,
         'timestamp': ServerValue.timestamp,
         'id': task,
       });
