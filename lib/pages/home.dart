@@ -69,17 +69,16 @@ class _HomePageState extends State<HomePage> {
     if (user != null) {
       final dbRef = FirebaseDatabase.instance.ref('tasks');
       final userId = FirebaseDatabase.instance.ref('users/${user.uid}');
-      final role = await userId.child('role').get();
-      if (role.exists && role.value == 'admin') {
+      if (user.displayName != null) {
         isAdmin = true;
       }
+      print(user.displayName??'Tidak ada data');
       for (var matkul in _userData!.keys) {
         double progress = 0;
         double total = 0;
         final userRef = userId.child(matkul);
         final snapshot = await dbRef.child(matkul).get();
         if (snapshot.exists) {
-          print('Sebelum perulangan: $notif');
           final listTask = Map.from(snapshot.value as Map);
           for (var keyTask in listTask.keys) {
             bool found = false;
@@ -174,8 +173,7 @@ class _HomePageState extends State<HomePage> {
               final taskAnnouncement =
                   await dbRef.child('$matkul/$keyTask/announcements').get();
               if (taskAnnouncement.exists) {
-                final userAnnouncement =
-                    Map.from(taskAnnouncement.value as Map);
+                final userAnnouncement = Map.from(taskAnnouncement.value as Map);
                 userAnnouncement.forEach((key, value) {
                   if (value['user'] == user.uid) {
                     found = true;
@@ -428,19 +426,25 @@ class _HomePageState extends State<HomePage> {
                                         index % Colors.primaries.length],
                                   ),
                                   child: Center(
-                                    child: Text(
-                                      'Tidak ada tugas yang akan jatuh tempo',
-                                      style: TextStyle(
-                                        fontSize: 20.0,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.primaries[index %
-                                                        Colors.primaries.length]
-                                                    .computeLuminance() >
-                                                0.24
-                                            ? Colors.black
-                                            : Colors.white,
-                                      ),
-                                      textAlign: TextAlign.center,
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'Tidak ada tugas yang akan jatuh tempo',
+                                          style: TextStyle(
+                                            fontSize: 20.0,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.primaries[index %
+                                                            Colors.primaries
+                                                                .length]
+                                                        .computeLuminance() >
+                                                    0.24
+                                                ? Colors.black
+                                                : Colors.white,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -500,7 +504,8 @@ class _HomePageState extends State<HomePage> {
                                               .keys
                                               .elementAt(index);
                                           if (index >= 4) {
-                                            int length = _notif![key].length - 4;
+                                            int length =
+                                                _notif![key].length - 4;
                                             return Container(
                                               child: Text(
                                                 'dan $length lainnya...',

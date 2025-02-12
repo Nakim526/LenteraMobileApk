@@ -85,6 +85,10 @@ class _ProfilePageState extends State<ProfilePage> {
           String? photoUrl;
           if (_photoPath != null) {
             photoUrl = await uploadImage(File(_photoPath!));
+          } else if (_photoPath == null) {
+            if (_userData!['photo'] != null) {
+              photoUrl = _userData!['photo'];
+            }
           }
           final databaseRef = FirebaseDatabase.instance.ref();
           final userRef = databaseRef.child('users').child(user.uid);
@@ -395,7 +399,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             ),
                             Flexible(
-                              child: Text(_userData?['address'] ?? "Unknown"),
+                              child: Text(_userData?['address'] == '' ? "Unknown" : _userData?['address'] ?? "Unknown"),
                             ),
                           ],
                         ),
@@ -474,27 +478,34 @@ class _ProfilePageState extends State<ProfilePage> {
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: _photoPath == null
-                              ? _userData!['photo'] == null
-                                  ? IconButton(
-                                      onPressed: () {
-                                        pickFile();
-                                      },
-                                      icon: Icon(
-                                        Icons.person,
-                                        size: profileHeight * 0.7,
-                                        color: Colors.white,
-                                      ),
-                                      style: IconButton.styleFrom(
-                                        shape: CircleBorder(),
-                                        padding: EdgeInsets.all(
-                                            profileHeight * 0.15),
-                                      ),
-                                    )
-                                  : Image.network(_userData!['photo'])
-                              : Stack(
-                                  children: [
-                                    ClipOval(
+                          child: Stack(
+                            children: [
+                              _photoPath == null
+                                  ? _userData!['photo'] == null
+                                      ? IconButton(
+                                          onPressed: () {
+                                            pickFile();
+                                          },
+                                          icon: Icon(
+                                            Icons.person,
+                                            size: profileHeight * 0.7,
+                                            color: Colors.white,
+                                          ),
+                                          style: IconButton.styleFrom(
+                                            shape: CircleBorder(),
+                                            padding: EdgeInsets.all(
+                                                profileHeight * 0.15),
+                                          ),
+                                        )
+                                      : ClipOval(
+                                          child: Image.network(
+                                            _userData!['photo'],
+                                            fit: BoxFit.cover,
+                                            width: profileHeight,
+                                            height: profileHeight,
+                                          ),
+                                        )
+                                  : ClipOval(
                                       child: Image.file(
                                         File(_photoPath!),
                                         fit: BoxFit.cover,
@@ -502,28 +513,32 @@ class _ProfilePageState extends State<ProfilePage> {
                                         width: profileHeight,
                                       ),
                                     ),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: IconButton(
-                                          icon: Icon(
-                                            Icons.delete,
-                                            size: profileHeight * 0.15,
-                                            color: Colors.black,
-                                          ),
-                                          onPressed: () {
-                                            pickFile();
-                                          },
-                                        ),
-                                      ),
+                              if (_photoPath != null ||
+                                  _userData!['photo'] != null)
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
                                     ),
-                                  ],
+                                    child: IconButton(
+                                      icon: Icon(
+                                        Icons.delete,
+                                        size: profileHeight * 0.15,
+                                        color: Colors.black,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _photoPath = null;
+                                        });
+                                      },
+                                    ),
+                                  ),
                                 ),
+                            ],
+                          ),
                         ),
                       ),
                       Container(
@@ -588,7 +603,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your name';
+                              return 'Nama wajib diisi';
                             }
                             return null;
                           },
@@ -682,12 +697,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               fontSize: 0,
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your NIM';
-                            }
-                            return null;
-                          },
                         ),
                       ),
                       Container(
@@ -778,12 +787,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               fontSize: 0,
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your address';
-                            }
-                            return null;
-                          },
                         ),
                       ),
                       Container(
