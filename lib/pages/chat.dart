@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:intl/intl.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import '../src/mqtt_service.dart';
+import 'package:vibration/vibration.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -18,9 +20,10 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('users');
-  final PageController _pageController = PageController(viewportFraction: 1.0);
-  final TextEditingController _messageController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
+  final _pageController = PageController(viewportFraction: 1.0);
+  final _scrollController = ScrollController();
+  final _messageController = TextEditingController();
+  final _searchController = TextEditingController();
   final MqttService mqttService = MqttService();
   final String topic = "flutter/chat";
   StreamSubscription? _messagesSubscription;
@@ -31,13 +34,17 @@ class _ChatPageState extends State<ChatPage> {
   List<Contact> _contacts = [];
   List<Contact> _filteredContacts = [];
   List<String> _filteredUsers = [];
+  final List<String> _selectedItems = [];
   bool _contactDenied = false;
   bool _isOpen = false;
   bool _isLooked = true;
   bool _isContact = false;
+  bool _isEditing = false;
   bool _isLoading = false;
   bool _isSearching = false;
+  String? _messageId;
   String? receiverId;
+  String? selectedMessage;
   int? usersLength;
 
   @override
@@ -45,16 +52,19 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _refresh();
     listenForLastMessages();
+    scrollToBottom();
     _searchController.addListener(_filterContacts);
   }
 
   @override
   void dispose() {
-    mqttService.disconnect();
     _pageController.dispose();
-    _messageController.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
+    _messageController.dispose();
     _messagesSubscription?.cancel();
+    _lastMessagesSubscription?.cancel();
+    mqttService.disconnect();
     super.dispose();
   }
 
@@ -190,10 +200,10 @@ class _ChatPageState extends State<ChatPage> {
     DatabaseReference messagesRef =
         FirebaseDatabase.instance.ref("messages/$chatId");
 
+    // ✅ Tambahkan pesan baru
     _messagesSubscription =
         messagesRef.orderByChild("timestamp").onChildAdded.listen((event) {
       try {
-        // ✅ Pastikan casting ke Map<String, dynamic>
         final rawData = event.snapshot.value as Map<dynamic, dynamic>;
         final newMessage =
             rawData.map((key, value) => MapEntry(key.toString(), value));
@@ -202,26 +212,125 @@ class _ChatPageState extends State<ChatPage> {
           if (!messages
               .any((msg) => msg["timestamp"] == newMessage["timestamp"])) {
             messages.add(newMessage);
-            print('berapa kali');
+            updateLastMessage(chatId, newMessage); // ✅ Update lastMessage
+            scrollToBottom();
           }
         });
       } catch (e) {
         print("🔥 Error parsing message: $e");
       }
     });
+
+    // ✅ Update pesan jika diedit
+    messagesRef.onChildChanged.listen((event) {
+      try {
+        final updatedData = event.snapshot.value as Map<dynamic, dynamic>;
+        final updatedMessage =
+            updatedData.map((key, value) => MapEntry(key.toString(), value));
+
+        setState(() {
+          int index = messages.indexWhere(
+              (msg) => msg["messageId"] == updatedMessage["messageId"]);
+          if (index != -1) {
+            messages[index] = updatedMessage;
+            updateLastMessage(chatId, updatedMessage); // ✅ Update lastMessage
+          }
+        });
+      } catch (e) {
+        print("🔥 Error updating message: $e");
+      }
+    });
+
+    // ✅ Hapus pesan
+    messagesRef.onChildRemoved.listen((event) {
+      try {
+        final deletedData = event.snapshot.value as Map<dynamic, dynamic>;
+        final deletedMessageId = deletedData["messageId"];
+
+        setState(() {
+          messages.removeWhere((msg) => msg["messageId"] == deletedMessageId);
+        });
+
+        // ✅ Jika semua pesan sudah dihapus, update lastMessage jadi null
+        if (messages.isEmpty) {
+          updateLastMessage(chatId, null);
+        } else {
+          updateLastMessage(chatId, messages.last);
+        }
+      } catch (e) {
+        print("🔥 Error deleting message: $e");
+      }
+    });
+  }
+
+  void updateLastMessage(String chatId, Map<String, dynamic>? lastMessage) {
+    DatabaseReference chatRef = FirebaseDatabase.instance.ref("chats/$chatId");
+
+    if (lastMessage != null) {
+      // ✅ Perbarui lastMessage jika ada pesan baru
+      chatRef.update({
+        "lastMessage": lastMessage["message"],
+        "lastSender": lastMessage["senderId"],
+        "timestamp": lastMessage["timestamp"],
+      });
+    } else {
+      // ✅ Hapus lastMessage jika semua pesan sudah dihapus
+      chatRef.update({
+        "lastMessage": null,
+        "lastSender": null,
+        "timestamp": null,
+      });
+    }
   }
 
   void listenForLastMessages() {
-    _lastMessagesSubscription?.cancel(); // Hentikan listener lama
+    _lastMessagesSubscription?.cancel();
     DatabaseReference chatsRef = FirebaseDatabase.instance.ref("chats");
 
-    _lastMessagesSubscription = chatsRef.onValue.listen((event) {
+    // ✅ Jika ada perubahan di "lastMessage", update UI
+    _lastMessagesSubscription = chatsRef.onValue.listen((event) async {
+      await Future.delayed(Duration(milliseconds: 100));
       if (event.snapshot.exists && event.snapshot.value != null) {
         final rawData = Map<String, dynamic>.from(event.snapshot.value as Map);
 
         setState(() {
           _last = rawData.map((key, value) => MapEntry(key.toString(), value));
         });
+      } else {
+        setState(() {
+          _last!.clear();
+        });
+      }
+    });
+
+    chatsRef.onChildChanged.listen((event) {
+      
+      try {
+        if (event.snapshot.exists && event.snapshot.value != null) {
+          final updatedData =
+              Map<String, dynamic>.from(event.snapshot.value as Map);
+          final chatId = event.snapshot.key;
+
+          setState(() {
+            if (_last!.containsKey(chatId)) {
+              _last![chatId!] = updatedData;
+            }
+          });
+        }
+      } catch (e) {
+        print("🔥 Error updating lastMessage: $e");
+      }
+    });
+
+    chatsRef.onChildRemoved.listen((event) {
+      try {
+        final chatId = event.snapshot.key;
+
+        setState(() {
+          _last!.remove(chatId);
+        });
+      } catch (e) {
+        print("🔥 Error deleting lastMessage: $e");
       }
     });
   }
@@ -232,14 +341,119 @@ class _ChatPageState extends State<ChatPage> {
     return DateFormat('HH:mm').format(date);
   }
 
+  String? getLastTime(int? timestamp, bool? isOpen) {
+    if (timestamp == 0 || timestamp == null) return '';
+
+    DateTime now = DateTime.now();
+    DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    Duration diff = now.difference(date);
+
+    if (diff.inDays == 0 && isOpen!) {
+      return 'Hari ini';
+    } else if (diff.inDays == 0) {
+      if (diff.inSeconds < 5) return 'Baru saja';
+      return DateFormat('HH:mm').format(date); // Hari ini → 12:30
+    } else if (diff.inDays == 1) {
+      return "Kemarin"; // Kemarin
+    } else if (diff.inDays < 7) {
+      return DateFormat('EEEE', 'id_ID').format(date); // Senin, Selasa, dll.
+    } else {
+      return DateFormat('d MMM yyyy', 'id_ID').format(date); // 5 Feb 2025
+    }
+  }
+
+  void scrollToBottom() {
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _showMessageOptions(
+      BuildContext context, String messageId, String? message) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      builder: (BuildContext ctx) {
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 16.0),
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: Icon(Icons.copy),
+                title: Text('Copy'),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: message!));
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.edit),
+                title: Text('Edit'),
+                onTap: () {
+                  setState(() {
+                    selectedMessage = message!;
+                    _messageController.text = message;
+                    _messageId = messageId;
+                    _isEditing = true;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.delete),
+                title: Text('Delete'),
+                onTap: () {
+                  _deleteMessage(messageId); // ✅ Hapus pesan
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    ).whenComplete(() {
+      // ✅ Hapus selection ketika BottomSheet tertutup
+      setState(() {
+        _selectedItems.clear();
+      });
+    });
+  }
+
+  void _deleteMessage(String messageId) {
+    String senderId = FirebaseAuth.instance.currentUser!.uid;
+    String chatId = getChatId(senderId, receiverId!);
+    DatabaseReference messageRef =
+        FirebaseDatabase.instance.ref("messages/$chatId/$messageId");
+    messageRef.remove();
+  }
+
+  void _editMessage(String messageId, String message) {
+    String senderId = FirebaseAuth.instance.currentUser!.uid;
+    String chatId = getChatId(senderId, receiverId!);
+    DatabaseReference messageRef =
+        FirebaseDatabase.instance.ref("messages/$chatId/$messageId");
+    messageRef.update({
+      'message': message,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    Set<String> displayedDates = {};
     return WillPopScope(
       onWillPop: () async {
         if (_isOpen) {
           setState(() {
             _isOpen = false;
             messages.clear();
+            receiverId = null;
           });
           return false;
         }
@@ -283,7 +497,7 @@ class _ChatPageState extends State<ChatPage> {
                   )
                 : AppBar(
                     title: Text(
-                      'Pesan',
+                      receiverId != null ? _data![receiverId]['name'] : 'Pesan',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -295,7 +509,15 @@ class _ChatPageState extends State<ChatPage> {
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () {
-                          Navigator.pop(context);
+                          if (_isOpen) {
+                            setState(() {
+                              _isOpen = false;
+                              messages.clear();
+                              receiverId = null;
+                            });
+                          } else {
+                            Navigator.pop(context);
+                          }
                         },
                       ),
                     ),
@@ -341,6 +563,7 @@ class _ChatPageState extends State<ChatPage> {
                                   _isLooked = true;
                                   _isContact = false;
                                 });
+                                _pageController.jumpToPage(0);
                               },
                               style: ElevatedButton.styleFrom(
                                 minimumSize:
@@ -454,12 +677,14 @@ class _ChatPageState extends State<ChatPage> {
                                                 MainAxisAlignment.start,
                                             children: [
                                               Text(
-                                                getTime(
-                                                  _last?[getChatId(
-                                                      FirebaseAuth.instance
-                                                          .currentUser!.uid,
-                                                      key)]['timestamp'],
-                                                ),
+                                                getLastTime(
+                                                      _last?[getChatId(
+                                                          FirebaseAuth.instance
+                                                              .currentUser!.uid,
+                                                          key)]?['timestamp'],
+                                                      false,
+                                                    ) ??
+                                                    '',
                                               ),
                                             ],
                                           ),
@@ -525,19 +750,21 @@ class _ChatPageState extends State<ChatPage> {
                                           subtitle: Text(_last?[getChatId(
                                                   FirebaseAuth.instance
                                                       .currentUser!.uid,
-                                                  key)]['lastMessage'] ??
+                                                  key)]?['lastMessage'] ??
                                               ''),
                                           trailing: Column(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.start,
                                             children: [
                                               Text(
-                                                getTime(
-                                                  _last?[getChatId(
-                                                      FirebaseAuth.instance
-                                                          .currentUser!.uid,
-                                                      key)]['timestamp'],
-                                                ),
+                                                getLastTime(
+                                                      _last?[getChatId(
+                                                          FirebaseAuth.instance
+                                                              .currentUser!.uid,
+                                                          key)]?['timestamp'],
+                                                      false,
+                                                    ) ??
+                                                    '',
                                               ),
                                             ],
                                           ),
@@ -711,119 +938,283 @@ class _ChatPageState extends State<ChatPage> {
                   ],
                 ),
                 if (_isOpen)
-                  Stack(
-                    children: [
-                      Container(
-                        color: Colors.white,
-                        child: ListView.builder(
-                          key: ValueKey(messages.length),
-                          itemCount: messages.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index == messages.length) {
-                              return Container(
-                                height: 100,
-                              );
-                            }
-                            final message = messages[index];
-                            return Container(
-                              margin: EdgeInsets.symmetric(
-                                vertical: 4,
-                                horizontal: 16,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: message['senderId'] ==
-                                        FirebaseAuth.instance.currentUser!.uid
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
+                  GestureDetector(
+                    onTap: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      setState(() {
+                        _selectedItems.clear();
+                      });
+                    },
+                    child: Stack(
+                      children: [
+                        Container(
+                          color: Colors.white,
+                          child: ListView.builder(
+                            key: ValueKey(messages.length),
+                            physics: AlwaysScrollableScrollPhysics(),
+                            controller: _scrollController,
+                            itemCount: messages.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == messages.length) {
+                                return Container(
+                                  height: _isEditing
+                                      ? kToolbarHeight * 2.885
+                                      : kToolbarHeight * 1.6,
+                                );
+                              }
+                              final message = messages[index];
+                              final key = messages[index]['messageId'];
+                              String dateLabel =
+                                  getLastTime(message['timestamp'], true) ?? '';
+
+                              bool showDate =
+                                  !displayedDates.contains(dateLabel);
+                              if (showDate) {
+                                displayedDates.add(dateLabel);
+                              }
+                              return Column(
                                 children: [
-                                  IntrinsicWidth(
-                                    child: Container(
-                                      padding: EdgeInsets.all(10),
-                                      constraints: BoxConstraints(
-                                        maxWidth:
-                                            MediaQuery.of(context).size.width *
-                                                0.8,
+                                  if (showDate)
+                                    Container(
+                                      margin: EdgeInsets.only(
+                                        top: 8,
+                                        bottom: 4,
                                       ),
+                                      padding: EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: message['senderId'] ==
-                                                FirebaseAuth
-                                                    .instance.currentUser!.uid
-                                            ? Colors.green
-                                            : Colors.grey[300],
+                                        color: Colors.grey[300],
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        message['message'],
+                                        getLastTime(
+                                                message['timestamp'], true) ??
+                                            '',
                                         style: TextStyle(
                                           color: Colors.black,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  Row(
-                                    mainAxisAlignment: message['senderId'] ==
-                                            FirebaseAuth
-                                                .instance.currentUser!.uid
-                                        ? MainAxisAlignment.end
-                                        : MainAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        getTime(message['timestamp']),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
+                                  GestureDetector(
+                                    onLongPress: () async {
+                                      if (await Vibration.hasVibrator()) {
+                                        Vibration.vibrate(
+                                            duration: 100); // ✅ Getaran 100ms
+                                      }
+                                      setState(() {
+                                        _selectedItems.clear();
+                                        _selectedItems.add(key);
+                                        _showMessageOptions(
+                                            context, key, message['message']);
+                                      });
+                                    },
+                                    child: Container(
+                                      margin: EdgeInsets.symmetric(
+                                        vertical: 4,
+                                        horizontal: 16,
                                       ),
-                                      SizedBox(width: 4),
-                                      Icon(
-                                        Icons.check,
-                                        size: 12,
-                                        color: Colors.grey,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            message['senderId'] ==
+                                                    FirebaseAuth.instance
+                                                        .currentUser!.uid
+                                                ? CrossAxisAlignment.end
+                                                : CrossAxisAlignment.start,
+                                        children: [
+                                          IntrinsicWidth(
+                                            child: Container(
+                                              padding: EdgeInsets.all(10),
+                                              constraints: BoxConstraints(
+                                                maxWidth: MediaQuery.of(context)
+                                                        .size
+                                                        .width *
+                                                    0.8,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: _selectedItems
+                                                        .contains(key)
+                                                    ? Colors.amber
+                                                    : message['senderId'] ==
+                                                            FirebaseAuth
+                                                                .instance
+                                                                .currentUser!
+                                                                .uid
+                                                        ? Colors
+                                                            .greenAccent[700]
+                                                        : Colors.grey[300],
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                message['message'],
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          Row(
+                                            mainAxisAlignment:
+                                                message['senderId'] ==
+                                                        FirebaseAuth.instance
+                                                            .currentUser!.uid
+                                                    ? MainAxisAlignment.end
+                                                    : MainAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                getTime(message['timestamp']),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              SizedBox(width: 4),
+                                              Icon(
+                                                Icons.check,
+                                                size: 12,
+                                                color: Colors.grey,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0.0,
-                        left: 0.0,
-                        right: 0.0,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 20.0,
-                            vertical: 16.0,
+                              );
+                            },
                           ),
-                          color: Colors.white,
-                          child: TextField(
-                            controller: _messageController,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24.0),
-                              ),
-                              contentPadding: EdgeInsets.all(20.0),
-                              hintText: 'Ketik pesan...',
-                              suffixIcon: IconButton(
-                                icon: Icon(Icons.send),
-                                onPressed: () {
-                                  if (_messageController.text.isNotEmpty) {
-                                    final user =
-                                        FirebaseAuth.instance.currentUser;
-                                    String message = _messageController.text;
-                                    _messageController.clear();
-                                    sendMessage(message,
-                                        getChatId(user!.uid, receiverId!));
-                                  }
-                                },
-                              ),
+                        ),
+                        if (_isEditing)
+                          Container(
+                            color: Colors.black45,
+                          ),
+                        Positioned(
+                          bottom: 0.0,
+                          left: 0.0,
+                          right: 0.0,
+                          child: Container(
+                            height: _isEditing
+                                ? kToolbarHeight * 2.885
+                                : kToolbarHeight * 1.6,
+                            color: Colors.green[900],
+                            child: Column(
+                              children: [
+                                SizedBox(height: 8.0),
+                                if (_isEditing)
+                                  Column(
+                                    children: [
+                                      Container(
+                                        margin: EdgeInsets.symmetric(
+                                          horizontal: 16.0,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[300]!
+                                              .withOpacity(0.8),
+                                          borderRadius:
+                                              BorderRadius.circular(8.0),
+                                        ),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12.0,
+                                          vertical: 8.0,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                selectedMessage!,
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(Icons.close),
+                                              color: Colors.black,
+                                              onPressed: () {
+                                                setState(() {
+                                                  _isEditing = false;
+                                                  _messageController.clear();
+                                                });
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(height: 8.0),
+                                    ],
+                                  ),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 12.0,
+                                  ),
+                                  child: TextField(
+                                    controller: _messageController,
+                                    maxLines: 4,
+                                    minLines: 1,
+                                    onTap: () {
+                                      setState(() {
+                                        scrollToBottom();
+                                      });
+                                    },
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                    ),
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(20.0),
+                                        borderSide: BorderSide(
+                                          color: Colors.grey[300]!,
+                                          width: 4.0,
+                                        ),
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding: EdgeInsets.all(20.0),
+                                      hintText: 'Ketik pesan...',
+                                      hintStyle: TextStyle(
+                                        color: Colors.grey,
+                                      ),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          Icons.send,
+                                          color: Colors.black,
+                                        ),
+                                        onPressed: () {
+                                          if (_messageController
+                                              .text.isNotEmpty) {
+                                            final user = FirebaseAuth
+                                                .instance.currentUser;
+                                            String message =
+                                                _messageController.text;
+                                            if (_isEditing) {
+                                              _editMessage(
+                                                  _messageId!, message);
+                                            } else {
+                                              sendMessage(
+                                                  message,
+                                                  getChatId(
+                                                      user!.uid, receiverId!));
+                                            }
+                                            setState(() {
+                                              _messageController.clear();
+                                              _selectedItems.clear();
+                                              _isEditing = false;
+                                              scrollToBottom();
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 16.0),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   )
               ],
             ),

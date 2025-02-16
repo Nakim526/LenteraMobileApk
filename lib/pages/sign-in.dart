@@ -345,14 +345,15 @@ class _SignInPageState extends State<SignInPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'LENTERA MOBILE',
+                                'Lentera Mobile',
                                 style: TextStyle(
-                                  fontSize: 26,
+                                  fontSize: 36,
                                   fontWeight: FontWeight.bold,
+                                  fontFamily: 'Crestwood',
                                 ),
                               ),
                               Padding(
-                                padding: EdgeInsets.symmetric(vertical: 50.0),
+                                padding: EdgeInsets.symmetric(vertical: 25.0),
                                 child: Image.asset(
                                   "lib/assets/logo UINAM.png",
                                   width: 100,
@@ -402,12 +403,15 @@ class _SignInPageState extends State<SignInPage> {
                                           style: TextButton.styleFrom(
                                             padding: EdgeInsets.zero,
                                             minimumSize: Size.zero,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.zero,
+                                            ),
                                           ),
                                           child: Text(
                                             " Daftar disini!",
                                             style: TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.blue[900]),
+                                                color: Colors.blue[900],),
                                           ),
                                         ),
                                       ],

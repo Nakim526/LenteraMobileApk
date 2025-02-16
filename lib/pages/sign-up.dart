@@ -11,6 +11,7 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _usernameController = TextEditingController();
+  final _nimController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -28,6 +29,7 @@ class _SignUpPageState extends State<SignUpPage> {
         'uid': user.uid,
         'email': user.email,
         'name': _usernameController.text.trim(),
+        'nim': _nimController.text.trim(),
       });
     }
   }
@@ -107,6 +109,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   void dispose() {
     _usernameController.dispose();
+    _nimController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -179,7 +182,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           TextFormField(
                             controller: _usernameController,
                             decoration: InputDecoration(
-                              labelText: 'Nama Lengkap',
+                              labelText: 'Nama Lengkap Anda',
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -190,9 +193,22 @@ class _SignUpPageState extends State<SignUpPage> {
                           ),
                           SizedBox(height: 16),
                           TextFormField(
+                            controller: _nimController,
+                            decoration: InputDecoration(
+                              labelText: 'NIM Anda',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your NIM';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+                          TextFormField(
                             controller: _emailController,
                             decoration:
-                                InputDecoration(labelText: 'Email Baru'),
+                                InputDecoration(labelText: 'Email Anda'),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';

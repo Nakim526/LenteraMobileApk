@@ -17,7 +17,6 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final GlobalKey<FormFieldState> fieldKeyName = GlobalKey<FormFieldState>();
   final GlobalKey<FormFieldState> fieldKeyNim = GlobalKey<FormFieldState>();
-  final GlobalKey<FormFieldState> fieldKeyAddress = GlobalKey<FormFieldState>();
   static const String clientId = "ca88e99d5b919db";
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
@@ -399,7 +398,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             ),
                             Flexible(
-                              child: Text(_userData?['address'] == '' ? "Unknown" : _userData?['address'] ?? "Unknown"),
+                              child: Text(_userData?['address'] == ''
+                                  ? "Unknown"
+                                  : _userData?['address'] ?? "Unknown"),
                             ),
                           ],
                         ),
@@ -597,7 +598,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                             errorStyle: TextStyle(
-                              height: 0, // Menyembunyikan error text bawaan
+                              height: 0,
                               fontSize: 0,
                             ),
                           ),
@@ -693,10 +694,16 @@ class _ProfilePageState extends State<ProfilePage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             errorStyle: TextStyle(
-                              height: 0, // Menyembunyikan error text bawaan
+                              height: 0,
                               fontSize: 0,
                             ),
                           ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'NIM wajib diisi';
+                            }
+                            return null;
+                          },
                         ),
                       ),
                       Container(
@@ -744,7 +751,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ],
                         ),
                         child: TextFormField(
-                          key: fieldKeyAddress,
                           controller: _addressController,
                           decoration: InputDecoration(
                             contentPadding: EdgeInsets.symmetric(
@@ -768,53 +774,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            errorBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.red,
-                                width: 1,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.red[900]!,
-                                width: 2,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            errorStyle: TextStyle(
-                              height: 0, // Menyembunyikan error text bawaan
-                              fontSize: 0,
-                            ),
                           ),
-                        ),
-                      ),
-                      Container(
-                        margin: EdgeInsets.symmetric(
-                          horizontal: 20,
-                        ),
-                        child: Builder(
-                          builder: (context) {
-                            final errorText =
-                                fieldKeyAddress.currentState?.errorText;
-                            if (errorText != null) {
-                              return Padding(
-                                padding: const EdgeInsets.only(
-                                  left: 8.0,
-                                  bottom: 8.0,
-                                ),
-                                child: Text(
-                                  errorText,
-                                  style: TextStyle(
-                                    color: Colors.red[900],
-                                    fontSize: 12,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              );
-                            }
-                            return SizedBox.shrink();
-                          },
                         ),
                       ),
                       Padding(

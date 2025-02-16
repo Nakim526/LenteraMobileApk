@@ -26,8 +26,10 @@ class AnswerPage extends StatefulWidget {
 
 class _AnswerPageState extends State<AnswerPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref('tasks');
+  final _draggableController = DraggableScrollableController();
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
+  final _emailController = TextEditingController();
   final _commentController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final List<Map<String, dynamic>> _uploadedFiles = [];
@@ -44,6 +46,7 @@ class _AnswerPageState extends State<AnswerPage> {
   String? _key;
   File? _file;
   int? sent;
+  bool _isExpanded = false;
   bool _isLoading = false;
   bool _isAdmin = false;
   bool _isFirst = true;
@@ -65,7 +68,9 @@ class _AnswerPageState extends State<AnswerPage> {
   void dispose() {
     _nameController.dispose();
     _nimController.dispose();
+    _emailController.dispose();
     _commentController.dispose();
+    _draggableController.dispose();
     super.dispose();
   }
 
@@ -88,6 +93,14 @@ class _AnswerPageState extends State<AnswerPage> {
       _loadData();
       return;
     }
+  }
+
+  void expandSheet(bool isExpanded) {
+    _draggableController.animateTo(
+      isExpanded ? 0.125 : 1.0,
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   Future<void> pickFile() async {
@@ -146,6 +159,7 @@ class _AnswerPageState extends State<AnswerPage> {
     setState(() {
       _nameController.text = _data![type][uid]['name'];
       _nimController.text = _data![type][uid]['nim'];
+      _emailController.text = _data![type][uid]['email'];
       _commentController.text = _data![type][uid]['comment'] ?? '';
       sent = _data![type][uid]['timestamp'];
     });
@@ -186,6 +200,18 @@ class _AnswerPageState extends State<AnswerPage> {
       _isLoading = true;
     });
     try {
+      // Minta izin penyimpanan (hanya untuk Android)
+      if (Platform.isAndroid) {
+        var status = await Permission.manageExternalStorage.request();
+        if (!status.isGranted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Pastikan izin penyimpanan diberikan.'),
+            ),
+          );
+        }
+      }
+
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userRef =
@@ -277,6 +303,7 @@ class _AnswerPageState extends State<AnswerPage> {
         setState(() {
           _nameController.text = userData['name'] ?? '';
           _nimController.text = userData['nim'] ?? '';
+          _emailController.text = userData['email'];
         });
       }
     }
@@ -356,7 +383,7 @@ class _AnswerPageState extends State<AnswerPage> {
       final data = jsonDecode(responseData.body);
       return data['data']['link'];
     } else {
-      throw Exception('Failed to upload image to Imgur');
+      throw Exception('Failed to upload image: ${response.statusCode}');
     }
   }
 
@@ -395,6 +422,7 @@ class _AnswerPageState extends State<AnswerPage> {
         await _dbRef.child('$_matkul/$_key/assignments/$_this').update({
           "name": _nameController.text,
           "nim": _nimController.text,
+          "email": _emailController.text,
           "comment": _commentController.text,
           "files": _uploadedFiles,
           "timestamp": ServerValue.timestamp,
@@ -406,6 +434,7 @@ class _AnswerPageState extends State<AnswerPage> {
       await _dbRef.child('$_matkul/$_key/assignments/$postId').set({
         'name': _nameController.text.trim(),
         'nim': _nimController.text.trim(),
+        'email': _emailController.text.trim(),
         'comment': _commentController.text.trim(),
         'files': _uploadedFiles,
         'timestamp': ServerValue.timestamp,
@@ -466,71 +495,80 @@ class _AnswerPageState extends State<AnswerPage> {
   }
 
   Future<void> uploadNewTask() async {
-    setState(() {
-      _isLoading = true;
-    });
-    try {
-      String? photoUrl;
-      if (_isEdit && _isSent) {
-        if (_selectedFiles.isNotEmpty) {
-          setState(() {
-            _uploadedFiles.clear();
-          });
-        }
-      }
-      if (_selectedFiles.isNotEmpty) {
-        for (int i = 0; i < _selectedFiles.length; i++) {
-          File file = _selectedFiles[i];
-          String? fileId = await uploadFile(file);
-          if (fileId != null) {
-            final fileLink = await getDriveFileLink(fileId);
-            String? viewLink = fileLink["viewLink"];
-            String? downloadLink = fileLink["downloadLink"];
-            if (viewLink != null && downloadLink != null) {
-              setState(() {
-                _uploadedFiles.add({
-                  'viewUrl': viewLink,
-                  'downloadUrl': downloadLink,
-                  'name': file.path.split('/').last,
-                  'mimeType': lookupMimeType(file.path),
-                });
-              });
-            }
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        String? photoUrl;
+        if (_isEdit && _isSent) {
+          if (_selectedFiles.isNotEmpty) {
+            setState(() {
+              _uploadedFiles.clear();
+            });
           }
         }
-      } else if (_photoPath != null) {
-        photoUrl = await uploadImage(File(_photoPath!));
-      }
-      if (_data!['type'] == 'Tugas') {
-        await sendAssignment();
-      } else if (_data!['type'] == 'Kehadiran') {
-        await sendPresence(photoUrl!);
-      }
-      await showDialog(
-        barrierDismissible: false,
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text("Upload Berhasil"),
-            content: Text("Data anda berhasil dikirimkan"),
-            actions: [
-              TextButton(
-                child: Text("OK"),
-                onPressed: () async {
-                  setState(() {
-                    _selectedFiles.clear();
+        if (_selectedFiles.isNotEmpty) {
+          for (int i = 0; i < _selectedFiles.length; i++) {
+            File file = _selectedFiles[i];
+            String? fileId = await uploadFile(file);
+            if (fileId != null) {
+              final fileLink = await getDriveFileLink(fileId);
+              String? viewLink = fileLink["viewLink"];
+              String? downloadLink = fileLink["downloadLink"];
+              if (viewLink != null && downloadLink != null) {
+                setState(() {
+                  _uploadedFiles.add({
+                    'viewUrl': viewLink,
+                    'downloadUrl': downloadLink,
+                    'name': file.path.split('/').last,
+                    'mimeType': lookupMimeType(file.path),
                   });
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+                });
+              }
+            }
+          }
+        } else if (_photoPath != null) {
+          photoUrl = await uploadImage(File(_photoPath!));
+        }
+        if (_data!['type'] == 'Tugas') {
+          await sendAssignment();
+        } else if (_data!['type'] == 'Kehadiran') {
+          await sendPresence(photoUrl!);
+        }
+        await showDialog(
+          barrierDismissible: false,
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Upload Berhasil"),
+              content: Text("Data anda berhasil dikirimkan"),
+              actions: [
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () async {
+                    setState(() {
+                      _selectedFiles.clear();
+                    });
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+          ),
+        );
+        print(e);
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -653,6 +691,10 @@ class _AnswerPageState extends State<AnswerPage> {
 
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double statusBarHeight = MediaQuery.of(context).padding.top;
+    double appBarHeight = kToolbarHeight;
+    double availableHeight = screenHeight - statusBarHeight - appBarHeight;
     return Stack(
       children: [
         Scaffold(
@@ -933,11 +975,12 @@ class _AnswerPageState extends State<AnswerPage> {
                   left: 0,
                   right: 0,
                   child: SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.8,
+                    height: availableHeight,
                     width: double.infinity,
                     child: DraggableScrollableSheet(
-                      initialChildSize: 0.12,
-                      minChildSize: 0.12,
+                      controller: _draggableController,
+                      initialChildSize: 0.125,
+                      minChildSize: 0.125,
                       maxChildSize: 1.0,
                       builder: (context, scrollController) {
                         return Form(
@@ -945,8 +988,8 @@ class _AnswerPageState extends State<AnswerPage> {
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16.0),
-                                topRight: Radius.circular(16.0),
+                                topLeft: Radius.circular(32.0),
+                                topRight: Radius.circular(32.0),
                               ),
                               color: Colors.grey.shade100,
                               boxShadow: [
@@ -963,19 +1006,60 @@ class _AnswerPageState extends State<AnswerPage> {
                               primary: false,
                               shrinkWrap: true,
                               children: [
+                                Column(
+                                  children: [
+                                    IconButton(
+                                      onPressed: () {
+                                        expandSheet(_isExpanded);
+                                        setState(() {
+                                          _isExpanded = !_isExpanded;
+                                        });
+                                      },
+                                      color: Colors.grey[600],
+                                      padding: EdgeInsets.zero,
+                                      icon: Icon(
+                                        _isExpanded
+                                            ? Icons.keyboard_arrow_down
+                                            : Icons.keyboard_arrow_up,
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey[400],
+                                            thickness: 4.0,
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8.0),
+                                          child: Text(
+                                            _isExpanded
+                                                ? 'Geser ke bawah'
+                                                : 'Geser ke atas',
+                                            style: TextStyle(
+                                              color: Colors.grey[800],
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey[400],
+                                            thickness: 4.0,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                                 Container(
                                   margin: EdgeInsets.only(
                                     top: 12.0,
                                     bottom: 12.0,
-                                  ),
-                                  padding: EdgeInsets.only(top: 12.0),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(
-                                        color: Colors.grey[400]!,
-                                        width: 4.0,
-                                      ),
-                                    ),
                                   ),
                                   child: Row(
                                     children: [
@@ -1189,30 +1273,59 @@ class _AnswerPageState extends State<AnswerPage> {
                                     children: [
                                       TextFormField(
                                         controller: _nameController,
+                                        enabled: false,
                                         decoration: InputDecoration(
-                                          border: OutlineInputBorder(),
+                                          disabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: Colors.grey[600]!,
+                                            ),
+                                          ),
                                           labelText: 'Nama',
+                                          labelStyle: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) {
-                                            return 'Please enter your name';
-                                          }
-                                          return null;
-                                        },
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                        ),
                                       ),
                                       SizedBox(height: 16),
                                       TextFormField(
                                         controller: _nimController,
+                                        enabled: false,
                                         decoration: InputDecoration(
-                                          border: OutlineInputBorder(),
+                                          disabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: Colors.grey[600]!,
+                                            ),
+                                          ),
                                           labelText: 'NIM',
+                                          labelStyle: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) {
-                                            return 'Please enter your NIM';
-                                          }
-                                          return null;
-                                        },
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _emailController,
+                                        enabled: false,
+                                        decoration: InputDecoration(
+                                          disabledBorder: OutlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: Colors.grey[600]!,
+                                            ),
+                                          ),
+                                          labelText: 'Email',
+                                          labelStyle: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                        ),
                                       ),
                                       SizedBox(height: 16),
                                       Container(
@@ -1427,6 +1540,9 @@ class _AnswerPageState extends State<AnswerPage> {
                                             DropdownButtonFormField<String>(
                                               decoration: InputDecoration(
                                                 labelText: "Keterangan",
+                                                labelStyle: TextStyle(
+                                                  color: Colors.grey[800],
+                                                ),
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(
@@ -1437,15 +1553,36 @@ class _AnswerPageState extends State<AnswerPage> {
                                               items: [
                                                 DropdownMenuItem(
                                                   value: "Hadir",
-                                                  child: Text("Hadir"),
+                                                  child: Text(
+                                                    "Hadir",
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                    ),
+                                                  ),
                                                 ),
                                                 DropdownMenuItem(
                                                   value: "Sakit",
-                                                  child: Text("Sakit"),
+                                                  child: Text(
+                                                    "Sakit",
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                    ),
+                                                  ),
                                                 ),
                                                 DropdownMenuItem(
                                                   value: "Izin",
-                                                  child: Text("Izin"),
+                                                  child: Text(
+                                                    "Izin",
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                    ),
+                                                  ),
                                                 ),
                                               ],
                                               onChanged: (value) {
@@ -1469,6 +1606,9 @@ class _AnswerPageState extends State<AnswerPage> {
                                         decoration: InputDecoration(
                                           alignLabelWithHint: true,
                                           hintText: 'Tulis komentar...',
+                                          hintStyle: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
                                           contentPadding: EdgeInsets.all(12.0),
                                           border: OutlineInputBorder(),
                                         ),
@@ -1527,11 +1667,19 @@ class _AnswerPageState extends State<AnswerPage> {
                                                 fileError = true;
                                               });
                                             }
-                                            if (_formKey.currentState!
-                                                    .validate() &&
-                                                (_photoPath != null ||
-                                                    _selectedFiles
-                                                        .isNotEmpty)) {
+                                            if (_photoPath != null ||
+                                                _selectedFiles.isNotEmpty) {
+                                              if (_location == null ||
+                                                  _location == '') {
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                        'Lokasi belum ditemukan!'),
+                                                  ),
+                                                );
+                                                return;
+                                              }
                                               await uploadNewTask();
                                               _loadData();
                                             }

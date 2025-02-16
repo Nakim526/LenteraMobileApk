@@ -61,6 +61,7 @@ dependencies:
   dio: ^5.8.0+1
   open_file: ^3.5.10
   mqtt_client: ^10.5.1
+  vibration: ^3.1.2
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: Crestwood
+      fonts:
+        - asset: lib\assets\Crestwood-W01-Regular.ttf
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

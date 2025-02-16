@@ -72,7 +72,7 @@ class _HomePageState extends State<HomePage> {
       if (user.displayName != null) {
         isAdmin = true;
       }
-      print(user.displayName??'Tidak ada data');
+      print(user.displayName ?? 'Tidak ada data');
       for (var matkul in _userData!.keys) {
         double progress = 0;
         double total = 0;
@@ -173,7 +173,8 @@ class _HomePageState extends State<HomePage> {
               final taskAnnouncement =
                   await dbRef.child('$matkul/$keyTask/announcements').get();
               if (taskAnnouncement.exists) {
-                final userAnnouncement = Map.from(taskAnnouncement.value as Map);
+                final userAnnouncement =
+                    Map.from(taskAnnouncement.value as Map);
                 userAnnouncement.forEach((key, value) {
                   if (value['user'] == user.uid) {
                     found = true;
@@ -217,6 +218,8 @@ class _HomePageState extends State<HomePage> {
         _data = data;
         _notif = totalNotif;
       });
+      print(_data);
+      print(_notif);
     }
   }
 
@@ -311,11 +314,12 @@ class _HomePageState extends State<HomePage> {
                         color: Colors.green[900],
                       ),
                       child: Text(
-                        'LENTERA MOBILE APP',
+                        'Lentera Mobile',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 24,
+                          fontSize: 36,
                           fontWeight: FontWeight.bold,
+                          fontFamily: 'Crestwood',
                         ),
                       ),
                     ),
@@ -383,9 +387,13 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               title: Text(
-                'LENTERA MOBILE APP',
-                style:
-                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                'Lentera Mobile',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Crestwood',
+                ),
               ),
             ),
             body: Container(
@@ -427,7 +435,8 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   child: Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           'Tidak ada tugas yang akan jatuh tempo',
