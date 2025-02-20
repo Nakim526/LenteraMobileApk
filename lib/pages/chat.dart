@@ -304,7 +304,6 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     chatsRef.onChildChanged.listen((event) {
-      
       try {
         if (event.snapshot.exists && event.snapshot.value != null) {
           final updatedData =
@@ -346,16 +345,18 @@ class _ChatPageState extends State<ChatPage> {
 
     DateTime now = DateTime.now();
     DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    Duration diff = now.difference(date);
+    DateTime nowDate = DateTime(now.year, now.month, now.day);
+    DateTime dateOnly = DateTime(date.year, date.month, date.day);
+    int dayDiff = nowDate.difference(dateOnly).inDays;
+    Duration timeDiff = now.difference(date);
 
-    if (diff.inDays == 0 && isOpen!) {
-      return 'Hari ini';
-    } else if (diff.inDays == 0) {
-      if (diff.inSeconds < 5) return 'Baru saja';
+    if (dayDiff == 0) {
+      if (isOpen!) return 'Hari ini';
+      if (timeDiff.inSeconds < 5) return 'Baru saja';
       return DateFormat('HH:mm').format(date); // Hari ini → 12:30
-    } else if (diff.inDays == 1) {
+    } else if (dayDiff == 1) {
       return "Kemarin"; // Kemarin
-    } else if (diff.inDays < 7) {
+    } else if (dayDiff < 7) {
       return DateFormat('EEEE', 'id_ID').format(date); // Senin, Selasa, dll.
     } else {
       return DateFormat('d MMM yyyy', 'id_ID').format(date); // 5 Feb 2025

@@ -126,7 +126,7 @@ class _SignUpPageState extends State<SignUpPage> {
       appBar: AppBar(
         backgroundColor: Colors.green[900],
         title: Text(
-          'Kembali Login',
+          'Kembali',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -182,7 +182,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           TextFormField(
                             controller: _usernameController,
                             decoration: InputDecoration(
-                              labelText: 'Nama Lengkap Anda',
+                              labelText: 'Nama Lengkap',
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {

@@ -110,6 +110,7 @@ class _AnswerPageState extends State<AnswerPage> {
       setState(() {
         _file = File(result.files.single.path!);
         _selectedFiles.add(_file!);
+        fileError = false;
       });
     }
   }
@@ -148,6 +149,10 @@ class _AnswerPageState extends State<AnswerPage> {
   }
 
   Future<void> syncData(String category, String? uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final userRef =
+        await FirebaseDatabase.instance.ref('users/${user!.uid}/email').get();
+    final snapshot = userRef.value as String;
     String? type;
     if (category == 'Tugas') {
       type = 'assignments';
@@ -159,7 +164,7 @@ class _AnswerPageState extends State<AnswerPage> {
     setState(() {
       _nameController.text = _data![type][uid]['name'];
       _nimController.text = _data![type][uid]['nim'];
-      _emailController.text = _data![type][uid]['email'];
+      _emailController.text = snapshot;
       _commentController.text = _data![type][uid]['comment'] ?? '';
       sent = _data![type][uid]['timestamp'];
     });
@@ -1656,19 +1661,10 @@ class _AnswerPageState extends State<AnswerPage> {
                                         child: ElevatedButton(
                                           onPressed: () async {
                                             if (_photoPath == null &&
-                                                _selectedFiles.isNotEmpty) {
+                                                _data!['type'] == 'Kehadiran') {
                                               setState(() {
                                                 photoError = true;
                                               });
-                                            }
-                                            if (_selectedFiles.isEmpty &&
-                                                _photoPath == null) {
-                                              setState(() {
-                                                fileError = true;
-                                              });
-                                            }
-                                            if (_photoPath != null ||
-                                                _selectedFiles.isNotEmpty) {
                                               if (_location == null ||
                                                   _location == '') {
                                                 ScaffoldMessenger.of(context)
@@ -1678,11 +1674,18 @@ class _AnswerPageState extends State<AnswerPage> {
                                                         'Lokasi belum ditemukan!'),
                                                   ),
                                                 );
-                                                return;
                                               }
-                                              await uploadNewTask();
-                                              _loadData();
+                                              return;
                                             }
+                                            if (_selectedFiles.isEmpty &&
+                                                _data!['type'] == 'Tugas') {
+                                              setState(() {
+                                                fileError = true;
+                                              });
+                                              return;
+                                            }
+                                            await uploadNewTask();
+                                            _loadData();
                                           },
                                           style: ElevatedButton.styleFrom(
                                             elevation: 4.0,

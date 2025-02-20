@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +22,7 @@ class _HomePageState extends State<HomePage> {
   double? currentProgress;
   double? totalProgress;
   bool _isLoading = false;
-  bool toClose = true;
+  bool _toClose = true;
 
   @override
   void initState() {
@@ -65,15 +67,16 @@ class _HomePageState extends State<HomePage> {
     Map data = {};
     Map notif = {};
     Map totalNotif = {};
+    Map<String, dynamic> updates = {};
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final dbRef = FirebaseDatabase.instance.ref('tasks');
       final userId = FirebaseDatabase.instance.ref('users/${user.uid}');
-      if (user.displayName != null) {
+      if (user.displayName != null && user.displayName != '') {
         isAdmin = true;
+        print('Ini Admin');
       }
-      print(user.displayName ?? 'Tidak ada data');
-      for (var matkul in _userData!.keys) {
+      for (String matkul in _userData!.keys) {
         double progress = 0;
         double total = 0;
         final userRef = userId.child(matkul);
@@ -103,7 +106,6 @@ class _HomePageState extends State<HomePage> {
                     }
                   }
                 }
-
                 final presences = await userRef.child('presences').get();
                 if (presences.exists) {
                   final userProgress = Map.from(presences.value as Map);
@@ -132,7 +134,7 @@ class _HomePageState extends State<HomePage> {
                   });
                 }
                 if (!found) {
-                  notif.addAll({keyTask: listTask[keyTask]});
+                  notif[keyTask] = listTask[keyTask];
                 }
               }
               if (listTask[keyTask]['type'] == 'Kehadiran') {
@@ -147,7 +149,7 @@ class _HomePageState extends State<HomePage> {
                   });
                 }
                 if (!found) {
-                  notif.addAll({keyTask: listTask[keyTask]});
+                  notif[keyTask] = listTask[keyTask];
                 }
               }
             } else if (listTask[keyTask]['type'] == 'Pengumuman') {
@@ -182,7 +184,7 @@ class _HomePageState extends State<HomePage> {
                 });
               }
               if (!found) {
-                notif.addAll({keyTask: listTask[keyTask]});
+                notif[keyTask] = listTask[keyTask];
               }
             }
           }
@@ -194,14 +196,7 @@ class _HomePageState extends State<HomePage> {
         });
         double percentage = currentProgress! / totalProgress!;
         int percentText = (percentage * 100).toInt();
-        userRef.update({
-          'progress': progress,
-          'total': isAdmin ? 30 : total,
-          'percentage': percentage,
-          'percentText': percentText,
-          'jadwal': _userData![matkul]['jadwal'],
-        });
-        data.addAll({
+        updates = {
           matkul: {
             'progress': progress,
             'total': isAdmin ? 30 : total,
@@ -209,7 +204,21 @@ class _HomePageState extends State<HomePage> {
             'percentText': percentText,
             'jadwal': _userData![matkul]['jadwal'],
           }
-        });
+        };
+        // userRef.update({
+        //   'progress': progress,
+        //   'total': isAdmin ? 30 : total,
+        //   'percentage': percentage,
+        //   'percentText': percentText,
+        //   'jadwal': _userData![matkul]['jadwal'],
+        // });
+        data[matkul] = {
+          'progress': progress,
+          'total': isAdmin ? 30 : total,
+          'percentage': percentage,
+          'percentText': percentText,
+          'jadwal': _userData![matkul]['jadwal'],
+        };
         if (notif.isEmpty) continue;
         totalNotif[snapshot.key] = Map.from(notif);
         notif.clear();
@@ -218,6 +227,7 @@ class _HomePageState extends State<HomePage> {
         _data = data;
         _notif = totalNotif;
       });
+      await userId.update(updates);
       print(_data);
       print(_notif);
     }
@@ -230,28 +240,6 @@ class _HomePageState extends State<HomePage> {
 
     // Navigasi kembali ke halaman login
     Navigator.pushReplacementNamed(context, '/sign-in');
-  }
-
-  Future<bool> _onExitConfirmation(BuildContext context) async {
-    return await showDialog(
-          barrierDismissible: false,
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text("Keluar Aplikasi"),
-            content: Text("Apakah Anda yakin ingin keluar?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text("Batal"),
-              ),
-              TextButton(
-                onPressed: () => SystemNavigator.pop(), // Keluar
-                child: Text("Keluar"),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 
   @override
@@ -287,18 +275,55 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        if (!toClose) {
-          Navigator.pop(context);
-          toClose = true;
-          return false;
-        } else if (_isLoading) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text("Mohon tunggu sebentar..."),
-          ));
-          return false;
-        } else {
-          return _onExitConfirmation(context);
+        // Jika tombol kembali ditekan pertama kali
+        if (!_toClose) {
+          setState(() {
+            _toClose = true;
+          });
+          Navigator.pop(context); // Kembali ke halaman sebelumnya
+          return false; // Cegah aplikasi tertutup langsung
         }
+
+        // Jika sedang loading, tampilkan pesan
+        if (_isLoading) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Mohon tunggu sebentar...")),
+            );
+          }
+          return false; // Cegah keluar
+        }
+
+        // Jika sudah siap untuk keluar, tampilkan dialog konfirmasi
+        bool exitApp = await showDialog(
+              barrierDismissible: false,
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text("Keluar Aplikasi"),
+                content: Text("Apakah Anda yakin ingin keluar?"),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(false); // Batalkan keluar
+                    },
+                    child: Text("Batal"),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(true); // Konfirmasi keluar
+                    },
+                    child: Text("Keluar"),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+
+        if (exitApp) {
+          SystemNavigator.pop(); // Tutup aplikasi dengan aman
+          return true;
+        }
+        return false; // Tetap di aplikasi
       },
       child: Stack(
         children: [
@@ -380,7 +405,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       onPressed: () {
                         Scaffold.of(context).openDrawer();
-                        toClose = false;
+                        _toClose = false;
                       },
                     );
                   },

@@ -347,7 +347,7 @@ class _SignInPageState extends State<SignInPage> {
                               Text(
                                 'Lentera Mobile',
                                 style: TextStyle(
-                                  fontSize: 36,
+                                  fontSize: 48,
                                   fontWeight: FontWeight.bold,
                                   fontFamily: 'Crestwood',
                                 ),
@@ -394,7 +394,7 @@ class _SignInPageState extends State<SignInPage> {
                                     SizedBox(height: 16),
                                     Row(
                                       children: [
-                                        Text("Belum punya akun?"),
+                                        Text("Belum punya akun? "),
                                         TextButton(
                                           onPressed: () {
                                             Navigator.pushNamed(
@@ -408,10 +408,11 @@ class _SignInPageState extends State<SignInPage> {
                                             ),
                                           ),
                                           child: Text(
-                                            " Daftar disini!",
+                                            "Daftar disini!",
                                             style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.blue[900],),
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.blue[900],
+                                            ),
                                           ),
                                         ),
                                       ],

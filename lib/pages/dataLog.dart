@@ -1096,7 +1096,9 @@ class _DataLogPageState extends State<DataLogPage> {
                                   children: [
                                     Flexible(
                                       child: Text(
-                                        _data![keyId]['comment'],
+                                        _data![keyId]['comment'] != ""
+                                            ? _data![keyId]['comment']
+                                            : '-',
                                         style: TextStyle(
                                           fontSize: 16.0,
                                           fontWeight: FontWeight.bold,
