@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LessonPage extends StatefulWidget {
   const LessonPage({super.key});
@@ -219,6 +220,15 @@ class _LessonPageState extends State<LessonPage> {
     _loadData();
   }
 
+  Future<void> _logout(BuildContext context) async {
+    // Hapus status login dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Navigasi kembali ke halaman login
+    Navigator.pushReplacementNamed(context, '/sign-in');
+  }
+
   String formatTimestamp(int timestamp) {
     if (timestamp == 0) return 'Tidak ada batas waktu';
     DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
@@ -379,17 +389,94 @@ class _LessonPageState extends State<LessonPage> {
       onWillPop: () async {
         if (_isLoading) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Tidak dapat kembali saat sedang memuat...'),
             ),
           );
           return false;
         }
-        return true;
+        Navigator.pushReplacementNamed(context, '/home');
+        return false;
       },
       child: Stack(
         children: [
           Scaffold(
+            drawer: Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  SizedBox(
+                    height: 125,
+                    child: DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Colors.green[900],
+                      ),
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            "lib/assets/logo UINAM.png",
+                            width: 50,
+                            height: 50,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Lentera Mobile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Crestwood',
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.home),
+                    title: Text('Home'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/home', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.person),
+                    title: Text('Profile'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/profile', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.description),
+                    title: Text('Notes'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/notes', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.chat),
+                    title: Text('Chat'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/chat', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign Out'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _logout(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
             appBar: AppBar(
               title: Text(
                 _matkul!,
@@ -412,7 +499,7 @@ class _LessonPageState extends State<LessonPage> {
                         ),
                       );
                     } else {
-                      Navigator.pop(context);
+                      Navigator.pushReplacementNamed(context, '/home');
                     }
                   },
                 ),
@@ -854,7 +941,9 @@ class _LessonPageState extends State<LessonPage> {
                                             ),
                                             SizedBox(height: 16.0),
                                             Text(
-                                              'Belum ada tugas ditambahkan',
+                                              _isAdmin
+                                                  ? 'Belum ada tugas ditambahkan'
+                                                  : 'Belum ada tugas diberikan',
                                               style: TextStyle(
                                                 fontSize: 24,
                                                 fontWeight: FontWeight.bold,
@@ -863,7 +952,9 @@ class _LessonPageState extends State<LessonPage> {
                                             ),
                                             SizedBox(height: 8.0),
                                             Text(
-                                              'Silahkan menambahkan tugas terlebih dahulu untuk diberikan kepada mahasiswa.',
+                                              _isAdmin
+                                                  ? 'Silahkan menambahkan tugas terlebih dahulu untuk diberikan kepada mahasiswa.'
+                                                  : 'Silahkan posting sesuatu untuk diumumkan kepada seluruh peserta kelas ini',
                                               style: TextStyle(
                                                 fontSize: 16,
                                               ),

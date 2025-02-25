@@ -93,7 +93,7 @@ class _PresencePageState extends State<PresencePage> {
       });
     } catch (e) {
       setState(() {
-        _location = 'Gagal mendapatkan lokasi: $e';
+        _location = null;
       });
     }
   }

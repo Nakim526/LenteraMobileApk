@@ -15,6 +15,7 @@ import 'package:mime/mime.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AnswerPage extends StatefulWidget {
@@ -48,6 +49,7 @@ class _AnswerPageState extends State<AnswerPage> {
   int? sent;
   bool _isExpanded = false;
   bool _isLoading = false;
+  bool _isReady = false;
   bool _isAdmin = false;
   bool _isFirst = true;
   bool _isOpen = false;
@@ -500,80 +502,78 @@ class _AnswerPageState extends State<AnswerPage> {
   }
 
   Future<void> uploadNewTask() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        String? photoUrl;
-        if (_isEdit && _isSent) {
-          if (_selectedFiles.isNotEmpty) {
-            setState(() {
-              _uploadedFiles.clear();
-            });
-          }
-        }
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      String? photoUrl;
+      if (_isEdit && _isSent) {
         if (_selectedFiles.isNotEmpty) {
-          for (int i = 0; i < _selectedFiles.length; i++) {
-            File file = _selectedFiles[i];
-            String? fileId = await uploadFile(file);
-            if (fileId != null) {
-              final fileLink = await getDriveFileLink(fileId);
-              String? viewLink = fileLink["viewLink"];
-              String? downloadLink = fileLink["downloadLink"];
-              if (viewLink != null && downloadLink != null) {
-                setState(() {
-                  _uploadedFiles.add({
-                    'viewUrl': viewLink,
-                    'downloadUrl': downloadLink,
-                    'name': file.path.split('/').last,
-                    'mimeType': lookupMimeType(file.path),
-                  });
+          setState(() {
+            _uploadedFiles.clear();
+          });
+        }
+      }
+      if (_selectedFiles.isNotEmpty) {
+        for (int i = 0; i < _selectedFiles.length; i++) {
+          File file = _selectedFiles[i];
+          String? fileId = await uploadFile(file);
+          if (fileId != null) {
+            final fileLink = await getDriveFileLink(fileId);
+            String? viewLink = fileLink["viewLink"];
+            String? downloadLink = fileLink["downloadLink"];
+            if (viewLink != null && downloadLink != null) {
+              setState(() {
+                _uploadedFiles.add({
+                  'viewUrl': viewLink,
+                  'downloadUrl': downloadLink,
+                  'name': file.path.split('/').last,
+                  'mimeType': lookupMimeType(file.path),
                 });
-              }
+              });
             }
           }
-        } else if (_photoPath != null) {
-          photoUrl = await uploadImage(File(_photoPath!));
         }
-        if (_data!['type'] == 'Tugas') {
-          await sendAssignment();
-        } else if (_data!['type'] == 'Kehadiran') {
-          await sendPresence(photoUrl!);
-        }
-        await showDialog(
-          barrierDismissible: false,
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text("Upload Berhasil"),
-              content: Text("Data anda berhasil dikirimkan"),
-              actions: [
-                TextButton(
-                  child: Text("OK"),
-                  onPressed: () async {
-                    setState(() {
-                      _selectedFiles.clear();
-                    });
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-          ),
-        );
-        print(e);
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
+      } else if (_photoPath != null) {
+        photoUrl = await uploadImage(File(_photoPath!));
       }
+      if (_data!['type'] == 'Tugas') {
+        await sendAssignment();
+      } else if (_data!['type'] == 'Kehadiran') {
+        await sendPresence(photoUrl!);
+      }
+      await showDialog(
+        barrierDismissible: false,
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text("Upload Berhasil"),
+            content: Text("Data anda berhasil dikirimkan"),
+            actions: [
+              TextButton(
+                child: Text("OK"),
+                onPressed: () async {
+                  setState(() {
+                    _selectedFiles.clear();
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+        ),
+      );
+      print(e);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -694,6 +694,20 @@ class _AnswerPageState extends State<AnswerPage> {
     return null;
   }
 
+  Future<void> _navigateAndRefresh(String routeName, Object? object) async {
+    Navigator.pushNamedAndRemoveUntil(context, routeName, (route) => false,
+        arguments: object);
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    // Hapus status login dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Navigasi kembali ke halaman login
+    Navigator.pushNamedAndRemoveUntil(context, '/sign-in', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     double screenHeight = MediaQuery.of(context).size.height;
@@ -703,6 +717,82 @@ class _AnswerPageState extends State<AnswerPage> {
     return Stack(
       children: [
         Scaffold(
+          drawer: Drawer(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                SizedBox(
+                  height: 125,
+                  child: DrawerHeader(
+                    decoration: BoxDecoration(
+                      color: Colors.green[900],
+                    ),
+                    child: Row(
+                      children: [
+                        Image.asset(
+                          "lib/assets/logo UINAM.png",
+                          width: 50,
+                          height: 50,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Lentera Mobile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Crestwood',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.home),
+                  title: Text('Home'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh('/home', null);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.person),
+                  title: Text('Profile'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh('/profile', null);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.description),
+                  title: Text('Notes'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh('/notes', null);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.chat),
+                  title: Text('Chat'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh('/chat', null);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.logout),
+                  title: Text('Sign Out'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _logout(context);
+                  },
+                ),
+              ],
+            ),
+          ),
           appBar: AppBar(
             title: Text(
               _data!['type'],
@@ -1028,7 +1118,13 @@ class _AnswerPageState extends State<AnswerPage> {
                                             : Icons.keyboard_arrow_up,
                                       ),
                                       style: IconButton.styleFrom(
-                                        padding: EdgeInsets.zero,
+                                        // padding: EdgeInsets.zero,
+                                        minimumSize:
+                                            Size(double.infinity, 48.0),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8.0),
+                                        ),
                                       ),
                                     ),
                                     Row(
@@ -1064,7 +1160,7 @@ class _AnswerPageState extends State<AnswerPage> {
                                 Container(
                                   margin: EdgeInsets.only(
                                     top: 12.0,
-                                    bottom: 12.0,
+                                    bottom: 8.0,
                                   ),
                                   child: Row(
                                     children: [
@@ -1083,7 +1179,7 @@ class _AnswerPageState extends State<AnswerPage> {
                                     ],
                                   ),
                                 ),
-                                SizedBox(height: 16.0),
+                                SizedBox(height: 8.0),
                                 if (!_isEdit)
                                   Column(
                                     crossAxisAlignment:
@@ -1339,7 +1435,9 @@ class _AnswerPageState extends State<AnswerPage> {
                                           borderRadius:
                                               BorderRadius.circular(4.0),
                                           border: Border.all(
-                                              color: Colors.grey[600]!),
+                                              color: photoError || fileError
+                                                  ? Colors.red[900]!
+                                                  : Colors.grey[600]!),
                                         ),
                                         child: Column(
                                           children: [
@@ -1409,7 +1507,8 @@ class _AnswerPageState extends State<AnswerPage> {
                                                             child: Icon(
                                                               Icons.close,
                                                               size: 20,
-                                                              color: Colors.red,
+                                                              color: Colors
+                                                                  .red[900],
                                                             ),
                                                             onTap: () {
                                                               setState(() {
@@ -1437,12 +1536,10 @@ class _AnswerPageState extends State<AnswerPage> {
                                                       _data!['type'] == 'Tugas'
                                                           ? pickFile()
                                                           : _photoPath == null
-                                                              ? getPhotoPath(
-                                                                  {
-                                                                    'name':
-                                                                        _matkul
-                                                                  },
-                                                                )
+                                                              ? getPhotoPath({
+                                                                  'name':
+                                                                      _matkul
+                                                                })
                                                               : await OpenFile
                                                                   .open(
                                                                   _photoPath,
@@ -1486,23 +1583,12 @@ class _AnswerPageState extends State<AnswerPage> {
                                                     ),
                                                     child: Text(
                                                       _data!['type'] == 'Tugas'
-                                                          ? fileError
-                                                              ? 'Please upload your file'
-                                                              : 'Unggah File'
-                                                          : photoError
-                                                              ? 'Please take your photo'
-                                                              : _photoPath ==
-                                                                      null
-                                                                  ? 'Ambil Foto'
-                                                                  : 'Lihat Foto',
+                                                          ? 'Unggah File'
+                                                          : _photoPath == null
+                                                              ? 'Ambil Foto'
+                                                              : 'Lihat Foto',
                                                       style: TextStyle(
-                                                        color: photoError
-                                                            ? Colors.red[800]
-                                                            : fileError
-                                                                ? Colors
-                                                                    .red[800]
-                                                                : Colors
-                                                                    .grey[800],
+                                                        color: Colors.grey[800],
                                                         fontWeight:
                                                             FontWeight.w400,
                                                         fontSize: 16,
@@ -1538,6 +1624,48 @@ class _AnswerPageState extends State<AnswerPage> {
                                           ],
                                         ),
                                       ),
+                                      if (photoError)
+                                        Container(
+                                          width: double.infinity,
+                                          margin: EdgeInsets.only(left: 12.5),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              SizedBox(height: 3.0),
+                                              Text(
+                                                'Please take your photo',
+                                                style: TextStyle(
+                                                  color: Colors.red[900],
+                                                  fontWeight: FontWeight.w400,
+                                                  fontSize: 12,
+                                                ),
+                                                // textAlign: TextAlign.left,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      if (fileError)
+                                        Container(
+                                          width: double.infinity,
+                                          margin: EdgeInsets.only(left: 12.5),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              SizedBox(height: 3.0),
+                                              Text(
+                                                'Please upload your file',
+                                                style: TextStyle(
+                                                  color: Colors.red[900],
+                                                  fontWeight: FontWeight.w400,
+                                                  fontSize: 12,
+                                                ),
+                                                // textAlign: TextAlign.left,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       SizedBox(height: 16.0),
                                       if (_data!['type'] == 'Kehadiran')
                                         Column(
@@ -1660,32 +1788,47 @@ class _AnswerPageState extends State<AnswerPage> {
                                         width: double.infinity,
                                         child: ElevatedButton(
                                           onPressed: () async {
-                                            if (_photoPath == null &&
-                                                _data!['type'] == 'Kehadiran') {
-                                              setState(() {
-                                                photoError = true;
-                                              });
-                                              if (_location == null ||
-                                                  _location == '') {
+                                            if (_data!['type'] == 'Kehadiran') {
+                                              if (_photoPath == null) {
+                                                setState(() {
+                                                  photoError = true;
+                                                });
+                                              }
+                                              if (_location == null) {
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(
                                                   SnackBar(
                                                     content: Text(
-                                                        'Lokasi belum ditemukan!'),
+                                                      'Lokasi belum ditemukan! Silahkan ambil ulang foto!',
+                                                    ),
                                                   ),
                                                 );
                                               }
-                                              return;
+                                              if (_photoPath != null &&
+                                                  (_location != null)) {
+                                                setState(() {
+                                                  _isReady = true;
+                                                });
+                                              }
+                                            } else if (_data!['type'] ==
+                                                'Tugas') {
+                                              if (_selectedFiles.isEmpty) {
+                                                setState(() {
+                                                  fileError = true;
+                                                });
+                                              } else {
+                                                setState(() {
+                                                  _isReady = true;
+                                                });
+                                              }
                                             }
-                                            if (_selectedFiles.isEmpty &&
-                                                _data!['type'] == 'Tugas') {
-                                              setState(() {
-                                                fileError = true;
-                                              });
-                                              return;
+                                            if (_formKey.currentState!
+                                                .validate()) {
+                                              if (_isReady) {
+                                                await uploadNewTask();
+                                                _loadData();
+                                              }
                                             }
-                                            await uploadNewTask();
-                                            _loadData();
                                           },
                                           style: ElevatedButton.styleFrom(
                                             elevation: 4.0,

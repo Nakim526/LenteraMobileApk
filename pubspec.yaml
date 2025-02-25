@@ -62,6 +62,7 @@ dependencies:
   open_file: ^3.5.10
   mqtt_client: ^10.5.1
   vibration: ^3.1.2
+  table_calendar: ^3.2.0
 
 dev_dependencies:
   flutter_test:

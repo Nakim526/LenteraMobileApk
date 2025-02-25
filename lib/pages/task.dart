@@ -12,6 +12,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key});
@@ -386,7 +387,7 @@ class _TaskPageState extends State<TaskPage> {
     // Pilih waktu
     final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: TimeOfDay(hour: 23, minute: 59),
     );
 
     if (pickedTime == null) return; // Jika batal memilih
@@ -409,6 +410,20 @@ class _TaskPageState extends State<TaskPage> {
     return DateFormat('dd MMM yyyy, HH:mm').format(date);
   }
 
+  Future<void> _navigateAndRefresh(String routeName, Object? object) async {
+    Navigator.pushNamedAndRemoveUntil(context, routeName, (route) => false,
+        arguments: object);
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    // Hapus status login dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Navigasi kembali ke halaman login
+    Navigator.pushNamedAndRemoveUntil(context, '/sign-in', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -426,6 +441,82 @@ class _TaskPageState extends State<TaskPage> {
       child: Stack(
         children: [
           Scaffold(
+            drawer: Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  SizedBox(
+                    height: 125,
+                    child: DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Colors.green[900],
+                      ),
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            "lib/assets/logo UINAM.png",
+                            width: 50,
+                            height: 50,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Lentera Mobile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Crestwood',
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.home),
+                    title: Text('Home'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/home', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.person),
+                    title: Text('Profile'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/profile', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.description),
+                    title: Text('Notes'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/notes', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.chat),
+                    title: Text('Chat'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/chat', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign Out'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _logout(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
             appBar: AppBar(
               title: Text(
                 _isAdmin ? 'Tugas' : 'Posting',

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
@@ -266,6 +267,11 @@ class _NotesPageState extends State<NotesPage> {
                 child: const Text('Batal'),
                 onPressed: () {
                   Navigator.pop(context);
+                  setState(() {
+                    _selectedItems.clear();
+                    _isSelect = false;
+                    _isDelete = false;
+                  });
                 },
               ),
               TextButton(
@@ -282,6 +288,7 @@ class _NotesPageState extends State<NotesPage> {
                   setState(() {
                     _selectedItems.clear();
                     _isSelect = false;
+                    _isDelete = false;
                   });
                   Navigator.pop(context);
                 },
@@ -291,6 +298,19 @@ class _NotesPageState extends State<NotesPage> {
         },
       );
     }
+  }
+
+  Future<void> _navigateAndRefresh(String routeName, Object? object) async {
+    Navigator.pushReplacementNamed(context, routeName, arguments: object);
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    // Hapus status login dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Navigasi kembali ke halaman login
+    Navigator.pushReplacementNamed(context, '/sign-in');
   }
 
   @override
@@ -329,9 +349,87 @@ class _NotesPageState extends State<NotesPage> {
           }
           return false;
         }
-        return true;
+
+        Navigator.pushReplacementNamed(context, '/home');
+        return false;
       },
       child: Scaffold(
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              SizedBox(
+                height: 125,
+                child: DrawerHeader(
+                  decoration: BoxDecoration(
+                    color: Colors.green[900],
+                  ),
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        "lib/assets/logo UINAM.png",
+                        width: 50,
+                        height: 50,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Lentera Mobile',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 42,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Crestwood',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: Icon(Icons.home),
+                title: Text('Home'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateAndRefresh('/home', null);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.person),
+                title: Text('Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateAndRefresh('/profile', null);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.description),
+                title: Text('Notes'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateAndRefresh('/notes', null);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.chat),
+                title: Text('Chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateAndRefresh('/chat', null);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.logout),
+                title: Text('Sign Out'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _logout(context);
+                },
+              ),
+            ],
+          ),
+        ),
         appBar: AppBar(
           title: Text(
             _isOpen
@@ -375,7 +473,7 @@ class _NotesPageState extends State<NotesPage> {
                     _isSelect = false;
                   });
                 } else {
-                  Navigator.pop(context);
+                  Navigator.pushReplacementNamed(context, '/home');
                 }
               },
             ),

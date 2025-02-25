@@ -350,6 +350,7 @@ class _SignInPageState extends State<SignInPage> {
                                   fontSize: 48,
                                   fontWeight: FontWeight.bold,
                                   fontFamily: 'Crestwood',
+                                  color: Color.fromARGB(255, 24, 107, 65),
                                 ),
                               ),
                               Padding(

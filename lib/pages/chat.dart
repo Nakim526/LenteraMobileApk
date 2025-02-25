@@ -8,6 +8,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:intl/intl.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../src/mqtt_service.dart';
 import 'package:vibration/vibration.dart';
 
@@ -25,7 +26,6 @@ class _ChatPageState extends State<ChatPage> {
   final _messageController = TextEditingController();
   final _searchController = TextEditingController();
   final MqttService mqttService = MqttService();
-  final String topic = "flutter/chat";
   StreamSubscription? _messagesSubscription;
   StreamSubscription? _lastMessagesSubscription;
   List<Map<String, dynamic>> messages = [];
@@ -445,6 +445,19 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  Future<void> _navigateAndRefresh(String routeName, Object? object) async {
+    Navigator.pushReplacementNamed(context, routeName, arguments: object);
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    // Hapus status login dari SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Navigasi kembali ke halaman login
+    Navigator.pushReplacementNamed(context, '/sign-in');
+  }
+
   @override
   Widget build(BuildContext context) {
     Set<String> displayedDates = {};
@@ -464,11 +477,88 @@ class _ChatPageState extends State<ChatPage> {
           });
           return false;
         }
-        return true;
+        Navigator.pushReplacementNamed(context, '/home');
+        return false;
       },
       child: Stack(
         children: [
           Scaffold(
+            drawer: Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  SizedBox(
+                    height: 125,
+                    child: DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Colors.green[900],
+                      ),
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            "lib/assets/logo UINAM.png",
+                            width: 50,
+                            height: 50,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Lentera Mobile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Crestwood',
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.home),
+                    title: Text('Home'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/home', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.person),
+                    title: Text('Profile'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/profile', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.description),
+                    title: Text('Notes'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/notes', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.chat),
+                    title: Text('Chat'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _navigateAndRefresh('/chat', null);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign Out'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _logout(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
             appBar: _isSearching
                 ? AppBar(
                     title: TextField(
@@ -517,7 +607,7 @@ class _ChatPageState extends State<ChatPage> {
                               receiverId = null;
                             });
                           } else {
-                            Navigator.pop(context);
+                            Navigator.pushReplacementNamed(context, '/home');
                           }
                         },
                       ),
