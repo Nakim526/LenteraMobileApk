@@ -51,10 +51,12 @@ class _SignInPageState extends State<SignInPage> {
         await userRef.update({
           'name': user.displayName,
           'role': 'admin',
+          'status': 'online',
         });
       } else {
         await userRef.update({
           'role': 'user',
+          'status': 'online',
         });
       }
 
@@ -65,75 +67,11 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   Future<void> getProgress(String? matkul, String? jadwal, bool? admin) async {
-    double currentProgress = 0;
-    double totalProgress = 0;
-    double progress = 0;
-    double total = 0;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userRef =
           FirebaseDatabase.instance.ref('users/${user.uid}/$matkul');
-      final taskRef = FirebaseDatabase.instance.ref('tasks/$matkul');
-      final snapshot = await taskRef.get();
-      if (snapshot.exists) {
-        final outerMap = Map.from(snapshot.value as Map);
-        for (var key in outerMap.keys) {
-          if (outerMap[key]['type'] == 'Tugas' ||
-              outerMap[key]['type'] == 'Kehadiran') {
-            total += 1;
-            if (admin!) {
-              progress += 1;
-            } else if (!admin) {
-              final userSnapshot = await userRef.child('presences').get();
-              if (userSnapshot.exists) {
-                final userProgress = Map.from(userSnapshot.value as Map);
-                for (var uid in userProgress.keys) {
-                  if (userProgress[uid] is Map) {
-                    if (userProgress[uid]['taskUid'] == key) {
-                      if (userProgress[uid]['status'] == 'Selesai') {
-                        progress += 1;
-                      } else if (userProgress[uid]['status'] == 'Terlambat') {
-                        progress += 0.5;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          } else if (outerMap[key]['type'] == 'Pengumuman') {
-            total += 0.5;
-            if (admin!) {
-              progress += 0.5;
-            } else {
-              final announcements = await userRef.child('announcements').get();
-              if (announcements.exists) {
-                final userProgress = Map.from(announcements.value as Map);
-                for (var uid in userProgress.keys) {
-                  if (userProgress[uid] is Map) {
-                    if (userProgress[uid]['taskUid'] == key) {
-                      if (userProgress[uid]['status'] == 'Selesai') {
-                        progress += 0.5;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      setState(() {
-        if (total == 0) total = 0.1;
-        currentProgress = progress;
-        totalProgress = admin! ? 30 : total;
-      });
-      double percentage = currentProgress / totalProgress;
-      int percentText = (percentage * 100).toInt();
       await userRef.update({
-        'progress': progress,
-        'total': admin! ? 30 : total,
-        'percentage': percentage,
-        'percentText': percentText,
         'jadwal': jadwal,
       });
     }

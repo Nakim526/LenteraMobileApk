@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'src/firebase_options.dart';
 import 'pages/sign-in.dart';
 import 'pages/sign-up.dart';
@@ -27,10 +30,61 @@ void main() async {
   runApp(MyApp(isLoggedIn: isLoggedIn));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final bool isLoggedIn;
 
   const MyApp({super.key, required this.isLoggedIn});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  User? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      setState(() {
+        _user = user;
+      });
+
+      if (user != null) {
+        _updateUserStatus("online");
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_user != null) {
+      if (state == AppLifecycleState.resumed) {
+        _updateUserStatus("online");
+      } else if (state == AppLifecycleState.paused ||
+          state == AppLifecycleState.inactive ||
+          state == AppLifecycleState.detached) {
+        _updateUserStatus("offline", saveLastSeen: true);
+      }
+      print(state);
+    }
+  }
+
+  void _updateUserStatus(String status, {bool saveLastSeen = false}) {
+    if (_user != null) {
+      FirebaseDatabase.instance.ref("users/${_user!.uid}").update({
+        "status": status,
+        if (saveLastSeen) "lastSeen": DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +97,14 @@ class MyApp extends StatelessWidget {
           child: child,
         );
       },
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate, // Diperlukan untuk showDatePicker
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [Locale('id', 'ID')],
       debugShowCheckedModeBanner: false,
-      initialRoute: isLoggedIn ? '/home' : '/sign-in',
+      initialRoute: widget.isLoggedIn ? '/home' : '/sign-in',
       routes: {
         '/sign-in': (context) => SignInPage(),
         '/sign-up': (context) => SignUpPage(),

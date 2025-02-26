@@ -48,7 +48,7 @@ dependencies:
   build_runner: ^2.4.0
   json_annotation: ^4.9.0
   firebase_database: ^11.3.1
-  intl: ^0.20.2
+  intl: ^0.19.0
   change_app_package_name: ^1.4.0
   permission_handler: ^11.3.1
   file_picker: ^8.3.1
@@ -62,7 +62,10 @@ dependencies:
   open_file: ^3.5.10
   mqtt_client: ^10.5.1
   vibration: ^3.1.2
-  table_calendar: ^3.2.0
+  table_calendar: ^3.1.0
+  flutter_localization: ^0.3.1
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:

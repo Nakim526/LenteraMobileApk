@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -416,6 +417,14 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    String status = 'Offline';
+    FirebaseDatabase.instance.ref("users/${user.uid}").update({
+      "status": status,
+      "lastSeen": DateTime.now().millisecondsSinceEpoch,
+    });
+
     // Hapus status login dari SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();

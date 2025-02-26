@@ -305,6 +305,14 @@ class _NotesPageState extends State<NotesPage> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    String status = 'Offline';
+    FirebaseDatabase.instance.ref("users/${user.uid}").update({
+      "status": status,
+      "lastSeen": DateTime.now().millisecondsSinceEpoch,
+    });
+
     // Hapus status login dari SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();

@@ -1,0 +1,2 @@
+D:/Flutter Mobile/Presentasi Karya/Presentasi Karya/android/app/.cxx/RelWithDebInfo/2mo3z46c/arm64-v8a/CMakeFiles/edit_cache.dir
+D:/Flutter Mobile/Presentasi Karya/Presentasi Karya/android/app/.cxx/RelWithDebInfo/2mo3z46c/arm64-v8a/CMakeFiles/rebuild_cache.dir

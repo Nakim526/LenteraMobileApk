@@ -15,8 +15,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _pageController = PageController(viewportFraction: 1.0);
+  final _scrollController = ScrollController();
   DateTime _selectedDay = DateTime.now();
-  final DateTime _focusedDay = DateTime.now();
   Map<DateTime, List<Map<String, dynamic>>>? _tasks;
   Map<dynamic, dynamic>? _userData;
   Map<dynamic, dynamic>? _data;
@@ -27,6 +27,7 @@ class _HomePageState extends State<HomePage> {
   bool _isProgress = false;
   bool _isClose = true;
   bool _isAdmin = false;
+  bool _isToday = true;
 
   @override
   void initState() {
@@ -103,20 +104,22 @@ class _HomePageState extends State<HomePage> {
         if (snapshot.exists) {
           final listTask = Map.from(snapshot.value as Map);
           for (var keyTask in listTask.keys) {
-            if (listTask[keyTask]['type'] == 'Pengumuman' &&
-                listTask[keyTask]['type'] == 'Kehadiran' &&
+            List<Map<String, dynamic>> taskCal = [];
+            DateTime? normalizedDate;
+            DateTime? deadline;
+
+            if (listTask[keyTask]['type'] == 'Pengumuman' ||
+                listTask[keyTask]['type'] == 'Kehadiran' ||
                 listTask[keyTask]['type'] == 'Tugas') {
               if (listTask[keyTask]['deadline'] != 0) {
-                DateTime taskDate = DateTime.fromMillisecondsSinceEpoch(
-                    listTask[keyTask]['deadline']);
-                List<Map<String, dynamic>> taskCal = [];
-
-                taskCal.add({
-                  'title': listTask[keyTask]['title'],
-                  'matkul': matkul,
-                });
-
-                tasks[taskDate] = taskCal;
+                deadline = DateTime.fromMillisecondsSinceEpoch(
+                  listTask[keyTask]['deadline'],
+                );
+                normalizedDate = DateTime.utc(
+                  deadline.year,
+                  deadline.month,
+                  deadline.day,
+                );
               }
             }
             bool found = false;
@@ -170,6 +173,16 @@ class _HomePageState extends State<HomePage> {
                   });
                 }
                 if (!found) {
+                  if (listTask[keyTask]['deadline'] != 0) {
+                    taskCal.add({
+                      'title': listTask[keyTask]['title'],
+                      'matkul': matkul,
+                      'date': listTask[keyTask]['deadline'],
+                      'time': DateFormat('HH:mm').format(deadline!).toString(),
+                    });
+
+                    tasks[normalizedDate!] = taskCal;
+                  }
                   notif[keyTask] = listTask[keyTask];
                 }
               }
@@ -186,6 +199,16 @@ class _HomePageState extends State<HomePage> {
                   });
                 }
                 if (!found) {
+                  if (listTask[keyTask]['deadline'] != 0) {
+                    taskCal.add({
+                      'title': listTask[keyTask]['title'],
+                      'matkul': matkul,
+                      'date': listTask[keyTask]['deadline'],
+                      'time': DateFormat('HH:mm').format(deadline!).toString(),
+                    });
+
+                    tasks[normalizedDate!] = taskCal;
+                  }
                   notif[keyTask] = listTask[keyTask];
                 }
               }
@@ -222,6 +245,16 @@ class _HomePageState extends State<HomePage> {
                 });
               }
               if (!found) {
+                if (listTask[keyTask]['deadline'] != 0) {
+                  taskCal.add({
+                    'title': listTask[keyTask]['title'],
+                    'matkul': matkul,
+                    'date': listTask[keyTask]['deadline'],
+                    'time': DateFormat('HH:mm').format(deadline!).toString(),
+                  });
+
+                  tasks[normalizedDate!] = taskCal;
+                }
                 notif[keyTask] = listTask[keyTask];
               }
             }
@@ -254,7 +287,22 @@ class _HomePageState extends State<HomePage> {
           'tugas': tugas,
         };
         if (notif.isEmpty) continue;
-        totalNotif[snapshot.key] = Map.from(notif);
+        notif = Map.fromEntries(
+          notif.entries.toList()
+            ..sort((a, b) {
+              int deadlineA = a.value['deadline'];
+              int deadlineB = b.value['deadline'];
+
+              // Jika deadlineA adalah 0, maka letakkan di akhir
+              if (deadlineA == 0) return 1;
+              // Jika deadlineB adalah 0, maka letakkan di akhir
+              if (deadlineB == 0) return -1;
+
+              // Urutkan berdasarkan deadline (terlama ke terbaru)
+              return deadlineA.compareTo(deadlineB);
+            }),
+        );
+        totalNotif[matkul] = Map.from(notif);
         notif.clear();
       }
       setState(() {
@@ -262,12 +310,36 @@ class _HomePageState extends State<HomePage> {
         _data = data;
         _notif = totalNotif;
         _tasks = tasks;
+        _tasks = Map.fromEntries(
+          _tasks!.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+        );
       });
+      print(_tasks);
       await userId.update(updates);
     }
   }
 
+  void scrollToBottom() {
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   Future<void> _logout(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    String status = 'Offline';
+    FirebaseDatabase.instance.ref("users/${user.uid}").update({
+      "status": status,
+      "lastSeen": DateTime.now().millisecondsSinceEpoch,
+    });
+
     // Hapus status login dari SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();
@@ -322,6 +394,43 @@ class _HomePageState extends State<HomePage> {
     if (hours > 0) return '(Sisa $hours jam lagi)';
     if (minutes > 0) return '(Sisa $minutes menit lagi)';
     return '(Sisa waktu habis)';
+  }
+
+  void _selectDate(BuildContext context) async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay, // Tanggal saat ini
+      firstDate: DateTime.utc(2000, 1, 1),
+      lastDate: DateTime.utc(2100, 12, 31),
+      locale: Locale('id'), // Sesuaikan dengan bahasa
+      helpText: "Pilih Bulan dan Tahun", // Teks di atas picker
+      fieldHintText: "MM/YYYY",
+      initialEntryMode: DatePickerEntryMode.calendarOnly, // Mode kalender saja
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDay = DateTime.utc(picked.year, picked.month, picked.day);
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredTasks {
+    if (_tasks == null) return [];
+
+    int selectedMonth = _selectedDay.month;
+    int selectedYear = _selectedDay.year;
+
+    // Ambil semua tugas dari setiap tanggal di _tasks yang memiliki bulan & tahun yang sama
+    List<Map<String, dynamic>> allTasks = [];
+
+    _tasks!.forEach((date, taskList) {
+      if (date.month == selectedMonth && date.year == selectedYear) {
+        allTasks.addAll(taskList);
+      }
+    });
+
+    return allTasks;
   }
 
   @override
@@ -473,6 +582,7 @@ class _HomePageState extends State<HomePage> {
               ),
               child: ListView(
                 physics: ClampingScrollPhysics(),
+                controller: _scrollController,
                 children: [
                   if (_notif != null)
                     Container(
@@ -698,7 +808,9 @@ class _HomePageState extends State<HomePage> {
                                   Expanded(
                                     child: ListView.builder(
                                       physics: NeverScrollableScrollPhysics(),
-                                      itemCount: _notif![key].length,
+                                      itemCount: _notif![key].length < 4
+                                          ? _notif![key].length
+                                          : 4,
                                       itemBuilder: (context, index) {
                                         final keyTask =
                                             _notif![key].keys.elementAt(index);
@@ -813,15 +925,98 @@ class _HomePageState extends State<HomePage> {
                     ),
                   _data == null
                       ? Container()
-                      : Column(
+                      : Stack(
                           children: [
-                            ListView.builder(
-                              itemCount: _data!.length,
-                              shrinkWrap: true,
-                              physics: NeverScrollableScrollPhysics(),
-                              itemBuilder: (context, index) {
-                                final key = _data!.keys.elementAt(index);
-                                return Container(
+                            Column(
+                              children: [
+                                ListView.builder(
+                                  itemCount: _data!.length,
+                                  shrinkWrap: true,
+                                  physics: NeverScrollableScrollPhysics(),
+                                  itemBuilder: (context, index) {
+                                    final key = _data!.keys.elementAt(index);
+                                    return Container(
+                                      margin: EdgeInsets.symmetric(
+                                        horizontal: 20.0,
+                                        vertical: 8.0,
+                                      ),
+                                      child: Material(
+                                        color: Colors.green.shade100,
+                                        elevation: 4.0,
+                                        clipBehavior: Clip.hardEdge,
+                                        borderRadius:
+                                            BorderRadius.circular(16.0),
+                                        child: ListTile(
+                                          title: Text(
+                                            key,
+                                            style: TextStyle(
+                                              fontSize: 15.0,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          subtitle: Text(
+                                            _data![key]['jadwal'],
+                                            style: TextStyle(
+                                              fontSize: 12.0,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          trailing: Stack(
+                                            children: [
+                                              _isProgress
+                                                  ? CircularProgressIndicator()
+                                                  : Stack(
+                                                      children: [
+                                                        CircularProgressIndicator(
+                                                          value: _data![key]
+                                                                  ['percentage']
+                                                              .toDouble(),
+                                                          strokeWidth: 5.0,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<
+                                                                  Color>(
+                                                            Colors.green[900]!,
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.white,
+                                                        ),
+                                                        Positioned.fill(
+                                                          child: Center(
+                                                            child: Text(
+                                                              '${_data![key]['percentText']}%',
+                                                              style: TextStyle(
+                                                                fontSize: 10.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                            ],
+                                          ),
+                                          onTap: () {
+                                            _navigateAndRefresh(
+                                              '/lesson',
+                                              <String, dynamic>{
+                                                'matkul': key,
+                                                'jadwal': _data![key]['jadwal'],
+                                                'color': Colors
+                                                    .primaries[index %
+                                                        Colors.primaries.length]
+                                                    .value,
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                Container(
                                   margin: EdgeInsets.symmetric(
                                     horizontal: 20.0,
                                     vertical: 8.0,
@@ -831,137 +1026,396 @@ class _HomePageState extends State<HomePage> {
                                     elevation: 4.0,
                                     clipBehavior: Clip.hardEdge,
                                     borderRadius: BorderRadius.circular(16.0),
-                                    child: ListTile(
-                                      title: Text(
-                                        key,
-                                        style: TextStyle(
-                                          fontSize: 15.0,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      subtitle: Text(
-                                        _data![key]['jadwal'],
-                                        style: TextStyle(
-                                          fontSize: 12.0,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      trailing: Stack(
-                                        children: [
-                                          _isProgress
-                                              ? CircularProgressIndicator()
-                                              : Stack(
-                                                  children: [
-                                                    CircularProgressIndicator(
-                                                      value: _data![key]
-                                                              ['percentage']
-                                                          .toDouble(),
-                                                      strokeWidth: 5.0,
-                                                      valueColor:
-                                                          AlwaysStoppedAnimation<
-                                                              Color>(
-                                                        Colors.green[900]!,
-                                                      ),
-                                                      backgroundColor:
-                                                          Colors.white,
-                                                    ),
-                                                    Positioned.fill(
-                                                      child: Center(
-                                                        child: Text(
-                                                          '${_data![key]['percentText']}%',
-                                                          style: TextStyle(
-                                                            fontSize: 10.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          margin: EdgeInsets.only(bottom: 8.0),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8.0,
+                                          ),
+                                          child: TableCalendar(
+                                            focusedDay: _selectedDay,
+                                            firstDay: DateTime.utc(2000, 1, 1),
+                                            lastDay: DateTime.utc(2100, 12, 12),
+                                            calendarFormat:
+                                                CalendarFormat.month,
+                                            selectedDayPredicate: (day) {
+                                              return isSameDay(
+                                                  _selectedDay, day);
+                                            },
+                                            daysOfWeekHeight: 24.0,
+                                            daysOfWeekStyle: DaysOfWeekStyle(
+                                              weekdayStyle: TextStyle(
+                                                fontSize: 12.0,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey[800],
+                                              ),
+                                              weekendStyle: TextStyle(
+                                                fontSize: 12.0,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.red[700],
+                                              ),
+                                            ),
+                                            onPageChanged: (focusedDay) {
+                                              setState(() {
+                                                _selectedDay = DateTime.utc(
+                                                  focusedDay.year,
+                                                  focusedDay.month,
+                                                  focusedDay.day,
+                                                );
+                                                if (focusedDay.month !=
+                                                    DateTime.now().month) {
+                                                  _isToday = false;
+                                                } else {
+                                                  _isToday = true;
+                                                }
+                                              });
+
+                                              scrollToBottom();
+                                            },
+                                            onDaySelected:
+                                                (selectedDay, focusedDay) {
+                                              setState(() {
+                                                _selectedDay = DateTime.utc(
+                                                  selectedDay.year,
+                                                  selectedDay.month,
+                                                  selectedDay.day,
+                                                );
+
+                                                scrollToBottom();
+                                              });
+                                            },
+                                            availableCalendarFormats: const {
+                                              CalendarFormat.month: 'Month',
+                                            },
+                                            calendarStyle: CalendarStyle(
+                                              cellMargin: EdgeInsets.all(2.0),
+                                              todayDecoration: BoxDecoration(
+                                                color: Colors.green.shade100,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.deepPurple,
+                                                  width: 1.0,
+                                                ),
+                                              ),
+                                              todayTextStyle: TextStyle(
+                                                fontSize: 12,
+                                                color: _isToday
+                                                    ? Colors.black
+                                                    : Colors.grey,
+                                                fontWeight: _isToday
+                                                    ? FontWeight.normal
+                                                    : FontWeight.w400,
+                                              ),
+                                              selectedDecoration: BoxDecoration(
+                                                color: Colors.deepPurple,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              selectedTextStyle: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.white,
+                                              ),
+                                              outsideDaysVisible: true,
+                                              outsideTextStyle: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                            ),
+                                            eventLoader: (day) {
+                                              return _tasks?[day] ?? [];
+                                            },
+                                            headerStyle: HeaderStyle(
+                                              leftChevronVisible: false,
+                                              rightChevronVisible: false,
+                                            ),
+                                            headerVisible: true,
+                                            calendarBuilders: CalendarBuilders(
+                                              headerTitleBuilder:
+                                                  (context, date) {
+                                                return GestureDetector(
+                                                  onTap: () =>
+                                                      _selectDate(context),
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .all(8.0),
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(Icons
+                                                                  .calendar_month),
+                                                              const SizedBox(
+                                                                  width: 8),
+                                                              Text(
+                                                                DateFormat
+                                                                        .yMMMM()
+                                                                    .format(
+                                                                        date),
+                                                                style: TextStyle(
+                                                                    fontSize:
+                                                                        16,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ),
                                                       ),
+                                                      IconButton(
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            _selectedDay =
+                                                                DateTime(
+                                                              _selectedDay.year,
+                                                              _selectedDay
+                                                                      .month -
+                                                                  1,
+                                                              1,
+                                                            );
+                                                          });
+                                                        },
+                                                        icon: Icon(
+                                                          Icons.chevron_left,
+                                                          size: 24,
+                                                        ),
+                                                      ),
+                                                      IconButton(
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            _selectedDay =
+                                                                DateTime(
+                                                              _selectedDay.year,
+                                                              _selectedDay
+                                                                      .month +
+                                                                  1,
+                                                              1,
+                                                            );
+                                                          });
+                                                        },
+                                                        icon: Icon(
+                                                          Icons.chevron_right,
+                                                          size: 24,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                              defaultBuilder:
+                                                  (context, day, focusedDay) {
+                                                bool isWeekend = day.weekday ==
+                                                        DateTime.saturday ||
+                                                    day.weekday ==
+                                                        DateTime.sunday;
+
+                                                return Center(
+                                                  child: Text(
+                                                    day.day.toString(),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                      color: isWeekend
+                                                          ? Colors.red[700]
+                                                          : Colors.black,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              markerBuilder:
+                                                  (context, date, events) {
+                                                if (events.isNotEmpty) {
+                                                  return Positioned(
+                                                    bottom: 0,
+                                                    child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
+                                                      children:
+                                                          events.map((event) {
+                                                        Color dotColor =
+                                                            Colors.deepPurple;
+                                                        if (_tasks != null) {
+                                                          for (var i = 0;
+                                                              i <
+                                                                  _tasks![date]!
+                                                                      .length;
+                                                              i++) {
+                                                            if (_tasks![date]![
+                                                                    i]['date'] <
+                                                                DateTime.now()
+                                                                    .millisecondsSinceEpoch) {
+                                                              dotColor =
+                                                                  Colors.red;
+                                                            }
+                                                          }
+                                                        }
+                                                        if (_selectedDay ==
+                                                            date) {
+                                                          dotColor = Colors
+                                                              .transparent;
+                                                        }
+                                                        if (_isAdmin) {
+                                                          dotColor = Colors
+                                                              .green[900]!;
+                                                        }
+                                                        return Container(
+                                                          width: 6,
+                                                          height: 6,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: dotColor,
+                                                          ),
+                                                        );
+                                                      }).toList(),
+                                                    ),
+                                                  );
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        AnimatedSize(
+                                          duration: Duration(milliseconds: 500),
+                                          curve: Curves.easeInOut,
+                                          child: _filteredTasks.isNotEmpty
+                                              ? Column(
+                                                  children: [
+                                                    Divider(
+                                                      thickness: 2.0,
+                                                      color: Colors.grey[700],
+                                                    ),
+                                                    Padding(
+                                                      padding: EdgeInsets.only(
+                                                          bottom: 8.0),
+                                                      child: ListView.builder(
+                                                        physics:
+                                                            NeverScrollableScrollPhysics(),
+                                                        shrinkWrap: true,
+                                                        itemCount:
+                                                            _filteredTasks
+                                                                .length,
+                                                        itemBuilder:
+                                                            (context, index) {
+                                                          return ListTile(
+                                                            dense: true,
+                                                            visualDensity:
+                                                                VisualDensity
+                                                                    .compact,
+                                                            leading: SizedBox(
+                                                              width: 30,
+                                                              child: Column(
+                                                                mainAxisAlignment:
+                                                                    MainAxisAlignment
+                                                                        .center,
+                                                                children: [
+                                                                  Flexible(
+                                                                    child: Text(
+                                                                      DateFormat(
+                                                                              'd MMM')
+                                                                          .format(
+                                                                        DateTime
+                                                                            .fromMillisecondsSinceEpoch(
+                                                                          _filteredTasks[index]
+                                                                              [
+                                                                              "date"],
+                                                                        ),
+                                                                      ),
+                                                                      style:
+                                                                          TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                      textAlign:
+                                                                          TextAlign
+                                                                              .center,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            title: Text(
+                                                              _filteredTasks[
+                                                                      index]
+                                                                  ["matkul"]!,
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                height: 2,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                            subtitle: Text(
+                                                              _filteredTasks[
+                                                                      index]
+                                                                  ["title"]!,
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          );
+                                                        },
+                                                      ),
                                                     ),
                                                   ],
-                                                ),
-                                        ],
-                                      ),
-                                      onTap: () {
-                                        _navigateAndRefresh(
-                                          '/lesson',
-                                          <String, dynamic>{
-                                            'matkul': key,
-                                            'jadwal': _data![key]['jadwal'],
-                                            'color': Colors
-                                                .primaries[index %
-                                                    Colors.primaries.length]
-                                                .value,
-                                          },
-                                        );
-                                      },
+                                                )
+                                              : SizedBox(),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                                SizedBox(height: 72.0),
+                              ],
                             ),
-                            Container(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 16.0,
-                              ),
-                              height: 8.0,
-                              decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.circular(4.0)),
-                            ),
-                            Container(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: 20.0,
-                                vertical: 8.0,
-                              ),
-                              child: Material(
-                                color: Colors.green.shade100,
-                                elevation: 4.0,
-                                clipBehavior: Clip.hardEdge,
-                                borderRadius: BorderRadius.circular(16.0),
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 8.0,
+                            Positioned(
+                              bottom: 0.0,
+                              child: IntrinsicHeight(
+                                child: Container(
+                                  padding: const EdgeInsets.all(24.0),
+                                  width: MediaQuery.of(context).size.width,
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[900],
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.grey.withOpacity(0.5),
+                                        spreadRadius: 5,
+                                        blurRadius: 7,
+                                        offset: Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
-                                  child: TableCalendar(
-                                    focusedDay: _selectedDay,
-                                    firstDay: DateTime.utc(2000, 1, 1),
-                                    lastDay: DateTime.utc(2100, 12, 12),
-                                    calendarFormat: CalendarFormat.month,
-                                    selectedDayPredicate: (day) {
-                                      return isSameDay(_selectedDay, day);
-                                    },
-                                    onDaySelected: (selectedDay, focusedDay) {
-                                      setState(() {
-                                        _selectedDay = selectedDay;
-                                      });
-                                    },
-                                    availableCalendarFormats: const {
-                                      CalendarFormat.month: 'Month',
-                                    },
-                                    calendarStyle: CalendarStyle(),
-                                    eventLoader: (day) {
-                                      return _tasks![day] ?? [];
-                                    },
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          '\u00A9 ${DateTime.now().year} Lentera Mobile. All rights reserved.',
+                                          style: TextStyle(
+                                            fontSize: 14.0,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                            ListView.builder(
-                              physics: NeverScrollableScrollPhysics(),
-                              shrinkWrap: true,
-                              itemCount: _tasks![_selectedDay]?.length ?? 0,
-                              itemBuilder: (context, index) {
-                                return ListTile(
-                                  title: Text(
-                                      _tasks![_selectedDay]![index]["title"]!),
-                                  subtitle: Text(_tasks![_selectedDay]![index]
-                                      ["description"]!),
-                                );
-                              },
-                            ),
-                            SizedBox(height: 8.0),
                           ],
                         ),
                 ],
