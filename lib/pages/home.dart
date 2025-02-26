@@ -1254,14 +1254,14 @@ class _HomePageState extends State<HomePage> {
                                                             }
                                                           }
                                                         }
+                                                        if (_isAdmin) {
+                                                          dotColor = Colors
+                                                              .green[900]!;
+                                                        }
                                                         if (_selectedDay ==
                                                             date) {
                                                           dotColor = Colors
                                                               .transparent;
-                                                        }
-                                                        if (_isAdmin) {
-                                                          dotColor = Colors
-                                                              .green[900]!;
                                                         }
                                                         return Container(
                                                           width: 6,
